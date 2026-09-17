@@ -52,7 +52,18 @@ git pull -q; grep -E '^(### WS-|> \*\*Estado|> \*\*Trabajando)' plan.md
 
 ### 0.6 Prompt de arranque (pégalo en tu Claude)
 
-> Lee `plan.md` completo. Soy **<Nombre>** y mi workstream es **WS-N**. Sigue el protocolo de §0: toma mi primera tarea no iniciada, márcala 🟦 en `main`, trabaja en mi rama y en mi carpeta, respeta los contratos de §5 sin modificarlos, y actualiza el plan al terminar cada tarea. Usa subagentes donde mi sección diga que las tareas son paralelizables.
+> Lee `plan.md` completo. Soy **<Nombre>** y mi workstream es **WS-N**. Sigue el protocolo de §0: toma mi primera tarea no iniciada, márcala 🟦 en `main`, trabaja en mi rama y en mi carpeta, respeta los contratos de §5 sin modificarlos, actualiza el plan al terminar cada tarea, y registra en `Deuda_Tecnica.md` (§0.7) cualquier atajo que tomes. Usa subagentes donde mi sección diga que las tareas son paralelizables.
+
+### 0.7 Deuda técnica → `Deuda_Tecnica.md`
+
+Hoy vamos a tomar atajos a propósito. La regla es que **ninguno se quede solo en la cabeza de alguien**:
+
+1. Todo atajo ("así por ahora", hardcode, error sin manejar, test que falta, stub que se quedó, workaround, límite conocido, tema de seguridad) se anota en **`Deuda_Tecnica.md`**, en **la sección de tu workstream**, con ID `DT-<ws>-<nn>` y el formato que viene en ese archivo.
+2. **Cero `TODO` huérfanos:** todo `TODO` / `FIXME` / `HACK` en el código lleva su ID: `// TODO(DT-3-02): …`.
+3. Se anota **en el mismo commit que crea la deuda**, en tu rama; llega a `main` con tu merge (no usa el flujo de §0.3).
+4. Los *no-objetivos* de §2 **no** son deuda: son alcance.
+5. Una deuda 🔴 que pueda romper el demo se avisa además a WS-0 en el momento.
+6. Pagarla = marcarla ✅ con el commit; nunca se borra la entrada.
 
 ---
 
@@ -111,6 +122,7 @@ Un laboratorio de impresión 3D **simulado** que se opera sin tocar las máquina
 | D-17 | **Simular**: si hay bus conectado llama `POST /api/demo`; si no (mock/offline) corre `imprimir('P1','cajon-1')` local. Es el último plan B si el backend muere. | Por defecto |
 | D-18 | El brazo se anima en **espacio de articulaciones** (poses puestas a mano), no con puntos cartesianos: son **7 poses**, no 32 puntos (§7 WS-3). | Por defecto |
 | D-19 | Deploy por **`rsync` + build en el VPS**: no se ponen credenciales de GitHub en el servidor (el repo es de Adrián y no somos admin). | Por defecto |
+| D-20 | Toda la deuda técnica se registra en **`Deuda_Tecnica.md`** (una sección por workstream, IDs `DT-<ws>-<nn>`, cero `TODO` huérfanos). Reglas en §0.7. | Usuario |
 
 *"Por defecto" = lo decidió el plan para no frenar; si alguien no está de acuerdo, se discute con WS-0, no se cambia por la libre.*
 
@@ -143,6 +155,7 @@ Navegador ──HTTPS──▶ Cloudflare ──Tunnel (ya existe)──▶ VPS 
 
 ```
 plan.md · README.md · CLAUDE.md · .env.example · Dockerfile · docker-compose.yml · scripts/   → WS-0
+Deuda_Tecnica.md                                                → TODOS, cada quien SOLO su sección (§0.7)
 backend/
   pyproject.toml · app/main.py · app/config.py · app/auth.py · app/contracts.py               → WS-0
   app/bus/      service.py · timeline.py · routes.py (state, demo, reset, /ws)                → WS-4 Fernando
@@ -322,7 +335,7 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 **Objetivo:** que los otros 5 puedan trabajar en paralelo sin pisarse, y que lo que salga se pueda desplegar. **Fase 0 es bloqueante para todos: es la prioridad absoluta.**
 
 **Fase 0 — Cimientos**
-- ⬜ **P1** — Monorepo: `frontend/` (Vite + TS estricto + `three` + `@types/three`), `backend/` (`uv`, `requires-python >=3.12,<3.13`, fastapi, uvicorn, pydantic, `strands-agents[ollama]`, pytest, httpx), `.gitignore`, `README.md` con §4.4, y `CLAUDE.md` que diga "lee `plan.md` y sigue §0". *Hecho cuando:* `npm run dev`, `npm run typecheck` y `uv run pytest` corren en limpio.
+- ⬜ **P1** — Monorepo: `frontend/` (Vite + TS estricto + `three` + `@types/three`), `backend/` (`uv`, `requires-python >=3.12,<3.13`, fastapi, uvicorn, pydantic, `strands-agents[ollama]`, pytest, httpx), `.gitignore`, `README.md` con §4.4, y `CLAUDE.md` que diga "lee `plan.md`, sigue §0 y registra todo atajo en `Deuda_Tecnica.md`". *Hecho cuando:* `npm run dev`, `npm run typecheck` y `uv run pytest` corren en limpio.
 - ⬜ **P2** — Contratos en código: `frontend/src/contracts.ts` y `backend/app/contracts.py` (Pydantic), espejo exacto de §5. *Hecho cuando:* ambos compilan y §5 no dice nada que el código no diga.
 - ⬜ **P3** — Esqueleto frontend: `index.html` con `#dashboard-root` y `#lab-root`; `views.ts`; `main.ts` con el cableado de §5.6; **stubs** de `mountDashboard` / `mountLab` / `mountMotion` / `mountStatusBar` en la carpeta de cada quien (para que todo importe y compile); `net/api.ts`, `net/bus.ts` (WebSocket real con reconexión) y `net/mock.ts` (`?mock=1`: estado inicial + job falso de 24 s al llamar `demo()` o `chat()`). *Hecho cuando:* con `?mock=1` se ve en consola la secuencia completa de §5.5.
 - ⬜ **P4** — Esqueleto backend: `main.py` (app factory, incluye routers de `bus/` y `agent/`, sirve `frontend/dist`), `config.py` (§5.8), `/api/health`, routers **stub** que responden `501`. *Hecho cuando:* `GET /api/health` → 200 y `/` sirve el build.
@@ -336,7 +349,7 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 
 **Fase 2–3**
 - ⬜ **P10** — Integración en el orden de M2, resolver conflictos, quitar stubs, cableado final de `main.ts`.
-- ⬜ **P11** — Smoke test local con el guion de §9 → **M3**.
+- ⬜ **P11** — Smoke test local con el guion de §9 → **M3**. Revisar `Deuda_Tecnica.md`: ninguna 🔴 abierta sin mitigación para el demo, y cero `TODO` huérfanos (comandos en ese archivo).
 - ⬜ **P12** — Deploy final + 2 ensayos completos (agente y plan B) en la URL pública → **M4**.
 
 **Subagentes:** P1→P2 en serie; después **P3 ∥ P4** (frontend y backend no comparten archivos). En Fase 1: **P6 ∥ P7 ∥ P8**, luego P9.
