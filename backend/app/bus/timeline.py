@@ -47,6 +47,7 @@ async def _run(job: Job) -> None:
 
 def _on_event(event: Event) -> None:
     if event["type"] == "job_started":
+        # TODO(DT-4-01): no se trackea/cancela esta tarea si bus.reset() llega a medio job.
         asyncio.create_task(_run(event["job"]))
 
 

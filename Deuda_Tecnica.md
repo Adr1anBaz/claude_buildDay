@@ -108,7 +108,11 @@ grep -rnE 'TODO|FIXME|HACK' frontend/src backend/app | grep -v 'DT-'   # TODOs h
 
 ## WS-4 · Estado y plan B — Fernando
 
-- _(sin deuda registrada)_
+- **DT-4-01** · 🟡 Media · ⬜ Abierta — timeline.py no cancela su tarea asyncio si se resetea a medio job
+  - **Dónde:** backend/app/bus/timeline.py::_run
+  - **Por qué se dejó:** F1-F5 se priorizó cerrar rápido el camino feliz para M2; cancelar tasks por job es más código
+  - **Riesgo:** Reiniciar mientras un job anima puede dejar una tarea vieja escribiendo estado (printer/arm) sobre el lab recién reseteado
+  - **Cómo se paga:** trackear el asyncio.Task devuelto por create_task en un dict por job.id y cancelarlo desde bus.reset()
 
 ---
 
