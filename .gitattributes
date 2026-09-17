@@ -1,0 +1,2 @@
+# Los scripts deben conservar saltos de línea LF también en Windows (si no, bash no los ejecuta)
+*.sh text eol=lf
