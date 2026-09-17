@@ -1,0 +1,8 @@
+/* Base mínima de la plataforma (WS-0). Cada módulo trae sus propios estilos en su carpeta. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #0f1115; color: #e6e8ee; }
+.view { min-height: 100%; }
+.view[hidden] { display: none; }
+#lab-root { position: fixed; inset: 0; }
+button { font: inherit; cursor: pointer; }

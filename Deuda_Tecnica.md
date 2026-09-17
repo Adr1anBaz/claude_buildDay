@@ -75,6 +75,16 @@ grep -rnE 'TODO|FIXME|HACK' frontend/src backend/app | grep -v 'DT-'   # TODOs h
   - **Por qué se dejó:** tiempo.
   - **Riesgo:** regresiones de integración que solo se ven al ensayar.
   - **Cómo se paga:** una prueba Playwright que corra el guion con `TIMELINE_SCALE` bajo.
+- **DT-0-08** · 🟡 Media · ⬜ Abierta — Stubs de módulos en las carpetas de otros workstreams
+  - **Dónde:** frontend/src/{dashboard,lab,motion,status}/index.ts y backend/app/{bus,agent}/routes.py
+  - **Por qué se dejó:** hacen falta para que todo compile e importe desde el día 1
+  - **Riesgo:** si alguien no los reemplaza, el demo corre con lógica falsa que parece real
+  - **Cómo se paga:** cada dueño los sustituye por su implementación conservando la firma; al integrar M2 no debe quedar ninguno
+- **DT-0-09** · 🟢 Baja · ⬜ Abierta — SECRET_KEY con valor por defecto inseguro
+  - **Dónde:** backend/app/config.py
+  - **Por qué se dejó:** para que arranque en local sin configurar nada
+  - **Riesgo:** si se despliega sin .env, las cookies de sesión son falsificables
+  - **Cómo se paga:** generar una en el VPS con openssl rand -hex 32 (ya está en .env.example)
 
 ---
 
