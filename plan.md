@@ -76,8 +76,8 @@ Hoy vamos a tomar atajos a propósito. La regla es que **ninguno se quede solo e
 
 | Fase | Qué | Ventana | Estado | Sale con |
 |---|---|---|---|---|
-| **0** | Cimientos: esqueleto, contratos en código, mocks | T+0:00 → T+0:45 | 🟦 | **M0**: `main` corre en local con mock |
-| **1** | Módulos en paralelo (6 workstreams) | T+0:45 → T+2:45 | ⬜ | **M1** (T+1:15) escena gris + bus core · **M2** módulos completos |
+| **0** | Cimientos: esqueleto, contratos en código, mocks | T+0:00 → T+0:45 | ✅ | **M0**: `main` corre en local con mock |
+| **1** | Módulos en paralelo (6 workstreams) | T+0:45 → T+2:45 | 🟦 | **M1** (T+1:15) escena gris + bus core · **M2** módulos completos |
 | **2** | Integración en `main` | T+2:45 → T+3:30 | ⬜ | **M3**: camino feliz de punta a punta en local |
 | **3** | Deploy final + ensayo del demo y del plan B | T+3:30 → T+4:15 | ⬜ | **M4**: URL pública funcionando |
 | **4** | Pulido (solo si sobra tiempo) | resto | ⬜ | — |
@@ -336,17 +336,17 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 ### WS-0 · Plataforma — José Luis
 > **Estado:** 🟦 En progreso
 > **Rama:** `ws/0-plataforma` · **Agente activo:** Claude de José Luis
-> **Trabajando ahora en:** Fase 0 completa (P1→P5): monorepo, contratos, esqueletos y mock
-> **Última actualización:** 2026-09-17 17:06
+> **Trabajando ahora en:** P6 auth · P7 Docker · P8 Ollama por Tailscale · P9 deploy temprano
+> **Última actualización:** 2026-09-17 17:12
 
 **Objetivo:** que los otros 5 puedan trabajar en paralelo sin pisarse, y que lo que salga se pueda desplegar. **Fase 0 es bloqueante para todos: es la prioridad absoluta.**
 
 **Fase 0 — Cimientos**
-- 🟦 **P1** — Monorepo: `frontend/` (Vite + TS estricto + `three` + `@types/three`), `backend/` (`uv`, `requires-python >=3.12,<3.13`, fastapi, uvicorn, pydantic, `strands-agents[ollama]`, pytest, httpx), ampliar el `.gitignore` que ya existe, `README.md` con §4.4, y `CLAUDE.md` que diga "corre `/ws-start`, sigue `plan.md` §0 y usa las skills `/plan-update`, `/deuda` y `/ws-merge`". Agregar el script `typecheck` a `frontend/package.json` (lo usa `/ws-merge`). *Hecho cuando:* `npm run dev`, `npm run typecheck` y `uv run pytest` corren en limpio.
-- 🟦 **P2** — Contratos en código: `frontend/src/contracts.ts` y `backend/app/contracts.py` (Pydantic), espejo exacto de §5. *Hecho cuando:* ambos compilan y §5 no dice nada que el código no diga.
-- 🟦 **P3** — Esqueleto frontend: `index.html` con `#dashboard-root` y `#lab-root`; `views.ts`; `main.ts` con el cableado de §5.6; **stubs** de `mountDashboard` / `mountLab` / `mountMotion` / `mountStatusBar` en la carpeta de cada quien (para que todo importe y compile); `net/api.ts`, `net/bus.ts` (WebSocket real con reconexión) y `net/mock.ts` (`?mock=1`: estado inicial + job falso de 24 s al llamar `demo()` o `chat()`). *Hecho cuando:* con `?mock=1` se ve en consola la secuencia completa de §5.5.
-- 🟦 **P4** — Esqueleto backend: `main.py` (app factory, incluye routers de `bus/` y `agent/`, sirve `frontend/dist`), `config.py` (§5.8), `/api/health`, routers **stub** que responden `501`. *Hecho cuando:* `GET /api/health` → 200 y `/` sirve el build.
-- 🟦 **P5** — Push a `main` = **M0**. Crear las 6 ramas. Avisar al equipo y anotar **T+0:00** en §1.
+- ✅ **P1** — Monorepo: `frontend/` (Vite + TS estricto + `three` + `@types/three`), `backend/` (`uv`, `requires-python >=3.12,<3.13`, fastapi, uvicorn, pydantic, `strands-agents[ollama]`, pytest, httpx), ampliar el `.gitignore` que ya existe, `README.md` con §4.4, y `CLAUDE.md` que diga "corre `/ws-start`, sigue `plan.md` §0 y usa las skills `/plan-update`, `/deuda` y `/ws-merge`". Agregar el script `typecheck` a `frontend/package.json` (lo usa `/ws-merge`). *Hecho cuando:* `npm run dev`, `npm run typecheck` y `uv run pytest` corren en limpio.
+- ✅ **P2** — Contratos en código: `frontend/src/contracts.ts` y `backend/app/contracts.py` (Pydantic), espejo exacto de §5. *Hecho cuando:* ambos compilan y §5 no dice nada que el código no diga.
+- ✅ **P3** — Esqueleto frontend: `index.html` con `#dashboard-root` y `#lab-root`; `views.ts`; `main.ts` con el cableado de §5.6; **stubs** de `mountDashboard` / `mountLab` / `mountMotion` / `mountStatusBar` en la carpeta de cada quien (para que todo importe y compile); `net/api.ts`, `net/bus.ts` (WebSocket real con reconexión) y `net/mock.ts` (`?mock=1`: estado inicial + job falso de 24 s al llamar `demo()` o `chat()`). *Hecho cuando:* con `?mock=1` se ve en consola la secuencia completa de §5.5.
+- ✅ **P4** — Esqueleto backend: `main.py` (app factory, incluye routers de `bus/` y `agent/`, sirve `frontend/dist`), `config.py` (§5.8), `/api/health`, routers **stub** que responden `501`. *Hecho cuando:* `GET /api/health` → 200 y `/` sirve el build.
+- ✅ **P5** — Push a `main` = **M0**. Crear las 6 ramas. Avisar al equipo y anotar **T+0:00** en §1.
 
 **Fase 1 — en paralelo con los demás**
 - ⬜ **P6** — Auth (D-09): `auth.py`, página mínima `/login`, cookie firmada, middleware que protege todo (incluido `/ws`) salvo `/api/health` y `/login`. Apagada si `LAB_PASSWORD` está vacío.
@@ -362,6 +362,7 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 **Subagentes:** P1→P2 en serie; después **P3 ∥ P4** (frontend y backend no comparten archivos). En Fase 1: **P6 ∥ P7 ∥ P8**, luego P9.
 
 **Bitácora WS-0**
+- 2026-09-17 17:12 — **M0 LISTO.** Esqueleto en `main`: frontend (Vite+TS+Three, contratos, mock `?mock=1`) y backend (FastAPI, contratos, auth, routers stub). Verificado con typecheck, build, pytest, servidor real y Chrome. **Los 5 workstreams ya pueden correr `/ws-start N`.** Stubs registrados como DT-0-08: cada dueño reemplaza el suyo conservando la firma.
 - 2026-09-17 17:06 — Arranca Fase 0. Skills y scripts del proyecto ya están en `main`; los demás: `git pull` + `/ws-start N`.
 
 ---
