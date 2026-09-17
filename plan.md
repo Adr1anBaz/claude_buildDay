@@ -23,44 +23,49 @@
 1. **Solo editas la sección de TU workstream** (§7, tu `WS-N`). Nunca la de otro. Así no hay conflictos de merge.
 2. El **Tablero de fases** (§1) y los **Contratos** (§5) solo los edita **WS-0 (José Luis)**.
 3. ¿Necesitas un cambio de contrato o algo de otro workstream? Escríbelo en **tu** Bitácora con el prefijo `SOLICITUD → WS-N:` y avisa a la persona. No lo cambies tú.
-4. Actualizas el plan en **3 momentos**: al tomar una tarea (⬜→🟦), al terminarla (🟦→🟨/✅), y al bloquearte (→🟥).
+4. Actualizas el plan **con `/plan-update`** en **3 momentos**: al tomar una tarea (⬜→🟦), al terminarla (🟦→🟨/✅), y al bloquearte (→🟥).
 5. Cada actualización toca: el icono de la tarea **y** la cabecera del workstream (`Estado`, `Trabajando ahora en`, `Última actualización`).
 
-### 0.3 Cómo publicar una actualización del plan (comandos exactos)
+### 0.3 Skills del proyecto (úsalas: no hagas estos pasos a mano)
 
-`plan.md` se actualiza **siempre en `main`**, para que todos vean lo mismo:
+Viven en `.claude/skills/` y te llegan con `git pull`. Cada una se apoya en un script de `scripts/` que hace la parte delicada de git de forma determinista.
 
-```bash
-git stash -u 2>/dev/null; git checkout main && git pull --rebase
-# ...editar SOLO tu sección de plan.md...
-git add plan.md && git commit -m "plan(ws-N): <tarea> <estado>" && git push
-git checkout ws/N-nombre && git merge main --no-edit; git stash pop 2>/dev/null
-```
+| Skill | Cuándo | Qué hace por ti |
+|---|---|---|
+| **`/ws-start <ws>`** | Al entrar al repo o empezar sesión | Crea o retoma tu rama con el nombre correcto **solo si M0 ya está en `main`**, e imprime tu sección vigente del plan |
+| **`/plan-update <ws> <tarea> <estado>`** | Al tomar, terminar o bloquear una tarea | Edita `plan.md` en un **worktree aparte** y lo publica en `main`: no cambia tu rama ni tu working tree, y **rechaza** el cambio si tocaste la sección de otro |
+| **`/deuda <ws> <sev> …`** | Cada vez que tomes un atajo | Registra la entrada con el siguiente ID y el formato correcto; también marca pagadas y detecta `TODO` huérfanos |
+| **`/ws-merge <ws>`** | Tarea terminada que desbloquea a otro, o puntos M1/M2/M3 | Trae `main` a tu rama, corre typecheck y tests, verifica que **solo tocaste tus archivos** (§4.3) y publica a `main` en fast-forward |
+
+Sin skills (o para leer): `scripts/plan.sh board` · `scripts/plan.sh show <ws>` · `scripts/deuda.sh list` · cada script imprime su ayuda si lo corres sin argumentos.
+
+⚠️ **El `plan.md` de tu rama puede estar viejo.** El plan vigente es siempre el de `origin/main`: léelo con `scripts/plan.sh show`. **Nunca edites `plan.md` en tu rama** (`/ws-merge` lo rechaza).
 
 ### 0.4 Flujo de git
 
-- Una rama por persona: `ws/0-plataforma`, `ws/1-dashboard`, `ws/2-lab`, `ws/3-motion`, `ws/4-estado`, `ws/5-agente`. **Todas nacen de `main` después de M0.**
+- Una rama por persona: `ws/0-plataforma`, `ws/1-dashboard`, `ws/2-lab`, `ws/3-motion`, `ws/4-estado`, `ws/5-agente`. **Todas nacen de `main` después de M0** (las crea `/ws-start`).
 - Cada módulo vive en **su carpeta** (§4.3). No edites archivos fuera de tu carpeta.
-- Merge a `main` **sin PR formal**, en los puntos de integración (§6) o antes si tu tarea desbloquea a otro. Antes de hacer merge: `git merge main` en tu rama, que compile (`npm run typecheck` / `uv run pytest`), y entonces `git checkout main && git merge ws/N-nombre && git push`.
+- A `main` se llega **solo con `/ws-merge`**, sin PR formal, en los puntos de integración (§6) o antes si tu tarea desbloquea a otro. Nada de `git push origin main` a mano.
 - Commits pequeños, mensaje `ws-N: qué hiciste`.
 
 ### 0.5 Ver el tablero de todos los workstreams
 
 ```bash
-git pull -q; grep -E '^(### WS-|> \*\*Estado|> \*\*Trabajando)' plan.md
+scripts/plan.sh board
 ```
 
 ### 0.6 Prompt de arranque (pégalo en tu Claude)
 
-> Lee `plan.md` completo. Soy **<Nombre>** y mi workstream es **WS-N**. Sigue el protocolo de §0: toma mi primera tarea no iniciada, márcala 🟦 en `main`, trabaja en mi rama y en mi carpeta, respeta los contratos de §5 sin modificarlos, actualiza el plan al terminar cada tarea, y registra en `Deuda_Tecnica.md` (§0.7) cualquier atajo que tomes. Usa subagentes donde mi sección diga que las tareas son paralelizables.
+> Haz `git pull` y corre **`/ws-start N`**. Soy **<Nombre>** y mi workstream es **WS-N**. Sigue el protocolo de `plan.md` §0: marca mi primera tarea no iniciada con `/plan-update` antes de escribir código, trabaja en mi rama y en mi carpeta, respeta los contratos de §5 sin modificarlos, registra con `/deuda` cualquier atajo que tomes, e integra con `/ws-merge`. Usa subagentes donde mi sección diga que las tareas son paralelizables.
 
 ### 0.7 Deuda técnica → `Deuda_Tecnica.md`
 
 Hoy vamos a tomar atajos a propósito. La regla es que **ninguno se quede solo en la cabeza de alguien**:
 
+0. **Usa la skill `/deuda`** (o `scripts/deuda.sh`): pone el ID y el formato por ti.
 1. Todo atajo ("así por ahora", hardcode, error sin manejar, test que falta, stub que se quedó, workaround, límite conocido, tema de seguridad) se anota en **`Deuda_Tecnica.md`**, en **la sección de tu workstream**, con ID `DT-<ws>-<nn>` y el formato que viene en ese archivo.
 2. **Cero `TODO` huérfanos:** todo `TODO` / `FIXME` / `HACK` en el código lleva su ID: `// TODO(DT-3-02): …`.
-3. Se anota **en el mismo commit que crea la deuda**, en tu rama; llega a `main` con tu merge (no usa el flujo de §0.3).
+3. Se anota **en el mismo commit que crea la deuda**, en tu rama; llega a `main` con tu `/ws-merge` (no usa `/plan-update`).
 4. Los *no-objetivos* de §2 **no** son deuda: son alcance.
 5. Una deuda 🔴 que pueda romper el demo se avisa además a WS-0 en el momento.
 6. Pagarla = marcarla ✅ con el commit; nunca se borra la entrada.
@@ -123,6 +128,7 @@ Un laboratorio de impresión 3D **simulado** que se opera sin tocar las máquina
 | D-18 | El brazo se anima en **espacio de articulaciones** (poses puestas a mano), no con puntos cartesianos: son **7 poses**, no 32 puntos (§7 WS-3). | Por defecto |
 | D-19 | Deploy por **`rsync` + build en el VPS**: no se ponen credenciales de GitHub en el servidor (el repo es de Adrián y no somos admin). | Por defecto |
 | D-20 | Toda la deuda técnica se registra en **`Deuda_Tecnica.md`** (una sección por workstream, IDs `DT-<ws>-<nn>`, cero `TODO` huérfanos). Reglas en §0.7. | Usuario |
+| D-21 | **Micro-skills del proyecto** en `.claude/skills/` (`/ws-start`, `/plan-update`, `/deuda`, `/ws-merge`) respaldadas por scripts en `scripts/`. `plan.md` se publica desde un worktree aparte y `main` solo recibe fast-forwards verificados. Reglas en §0.3. | Usuario |
 
 *"Por defecto" = lo decidió el plan para no frenar; si alguien no está de acuerdo, se discute con WS-0, no se cambia por la libre.*
 
@@ -155,6 +161,7 @@ Navegador ──HTTPS──▶ Cloudflare ──Tunnel (ya existe)──▶ VPS 
 
 ```
 plan.md · README.md · CLAUDE.md · .env.example · Dockerfile · docker-compose.yml · scripts/   → WS-0
+.claude/skills/ · .gitignore                                     → WS-0
 Deuda_Tecnica.md                                                → TODOS, cada quien SOLO su sección (§0.7)
 backend/
   pyproject.toml · app/main.py · app/config.py · app/auth.py · app/contracts.py               → WS-0
@@ -335,7 +342,7 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 **Objetivo:** que los otros 5 puedan trabajar en paralelo sin pisarse, y que lo que salga se pueda desplegar. **Fase 0 es bloqueante para todos: es la prioridad absoluta.**
 
 **Fase 0 — Cimientos**
-- ⬜ **P1** — Monorepo: `frontend/` (Vite + TS estricto + `three` + `@types/three`), `backend/` (`uv`, `requires-python >=3.12,<3.13`, fastapi, uvicorn, pydantic, `strands-agents[ollama]`, pytest, httpx), `.gitignore`, `README.md` con §4.4, y `CLAUDE.md` que diga "lee `plan.md`, sigue §0 y registra todo atajo en `Deuda_Tecnica.md`". *Hecho cuando:* `npm run dev`, `npm run typecheck` y `uv run pytest` corren en limpio.
+- ⬜ **P1** — Monorepo: `frontend/` (Vite + TS estricto + `three` + `@types/three`), `backend/` (`uv`, `requires-python >=3.12,<3.13`, fastapi, uvicorn, pydantic, `strands-agents[ollama]`, pytest, httpx), ampliar el `.gitignore` que ya existe, `README.md` con §4.4, y `CLAUDE.md` que diga "corre `/ws-start`, sigue `plan.md` §0 y usa las skills `/plan-update`, `/deuda` y `/ws-merge`". Agregar el script `typecheck` a `frontend/package.json` (lo usa `/ws-merge`). *Hecho cuando:* `npm run dev`, `npm run typecheck` y `uv run pytest` corren en limpio.
 - ⬜ **P2** — Contratos en código: `frontend/src/contracts.ts` y `backend/app/contracts.py` (Pydantic), espejo exacto de §5. *Hecho cuando:* ambos compilan y §5 no dice nada que el código no diga.
 - ⬜ **P3** — Esqueleto frontend: `index.html` con `#dashboard-root` y `#lab-root`; `views.ts`; `main.ts` con el cableado de §5.6; **stubs** de `mountDashboard` / `mountLab` / `mountMotion` / `mountStatusBar` en la carpeta de cada quien (para que todo importe y compile); `net/api.ts`, `net/bus.ts` (WebSocket real con reconexión) y `net/mock.ts` (`?mock=1`: estado inicial + job falso de 24 s al llamar `demo()` o `chat()`). *Hecho cuando:* con `?mock=1` se ve en consola la secuencia completa de §5.5.
 - ⬜ **P4** — Esqueleto backend: `main.py` (app factory, incluye routers de `bus/` y `agent/`, sirve `frontend/dist`), `config.py` (§5.8), `/api/health`, routers **stub** que responden `501`. *Hecho cuando:* `GET /api/health` → 200 y `/` sirve el build.

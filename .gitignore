@@ -1,0 +1,22 @@
+# worktree interno de scripts/plan.sh
+.worktrees/
+
+# entorno y secretos
+.env
+.env.*
+!.env.example
+
+# frontend
+node_modules/
+dist/
+
+# backend
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# sistema / editores
+.DS_Store
+.idea/
+.vscode/

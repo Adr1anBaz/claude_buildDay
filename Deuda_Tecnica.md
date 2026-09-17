@@ -1,7 +1,7 @@
 # Deuda_Tecnica.md — Lab Operador
 
 > **Registro único de deuda técnica del proyecto.** Todo atajo que tomemos hoy por el tiempo se anota aquí, para que el demo salga rápido **sin** que nadie olvide lo que quedó pendiente.
-> Reglas completas en `plan.md` §0.7. Resumen abajo.
+> Reglas completas en `plan.md` §0.7. Resumen abajo. **Para registrar usa la skill `/deuda`** (o `scripts/deuda.sh add …`): pone el ID y el formato por ti.
 
 ## Reglas
 
