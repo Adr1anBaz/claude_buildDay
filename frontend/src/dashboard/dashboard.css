@@ -1,0 +1,317 @@
+/* WS-1 · Daniela — Dashboard. Una sola columna: botón → visor STL → chat → #status-bar. */
+
+.dashboard {
+  min-height: 100vh;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* 1. Botón "Ver laboratorio": siempre visible arriba. */
+.dashboard__topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #0f1115;
+  padding-bottom: 4px;
+}
+
+.btn-primary {
+  background: #3b6fe0;
+  color: #f4f6ff;
+  border: 1px solid #4d7ef0;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #4d7ef0;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.dashboard__ver-lab {
+  align-self: flex-start;
+}
+
+.dashboard__section-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8b93a7;
+}
+
+/* 2. Visor STL */
+.dashboard__viewer-wrap {
+  flex: 0 0 auto;
+}
+
+.stl-viewer {
+  position: relative;
+  height: 320px;
+  border-radius: 10px;
+  border: 1px solid #262b36;
+  background: #14161c;
+  overflow: hidden;
+}
+
+.stl-viewer__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.stl-viewer__canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.stl-viewer__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  font-size: 14px;
+  color: #6b7284;
+  pointer-events: none;
+}
+
+.stl-viewer__overlay--error {
+  flex-direction: column;
+  gap: 4px;
+  color: #ff9a9a;
+}
+
+.stl-viewer__overlay--error strong {
+  color: #ffb4b4;
+  font-size: 14px;
+  word-break: break-all;
+}
+
+/* La regla de arriba fija display:flex, lo que gana sobre el [hidden] del user agent
+   (una hoja de estilos de autor siempre le gana a la del user agent). Se restaura aquí. */
+.stl-viewer__overlay[hidden] {
+  display: none;
+}
+
+.stl-viewer__filetag {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  background: rgba(15, 17, 21, 0.75);
+  border: 1px solid #2a2f3a;
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 12px;
+  color: #c7cce0;
+  pointer-events: none;
+}
+
+/* 3. Chat */
+.dashboard__chat-wrap {
+  flex: 1;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid #262b36;
+  border-radius: 10px;
+  background: #14161c;
+  overflow: hidden;
+}
+
+.chat__log {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat__empty {
+  margin: auto 0;
+  text-align: center;
+  color: #6b7284;
+  font-size: 13px;
+}
+
+.chat__line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 88%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.chat__who {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
+.chat__line--user {
+  align-self: flex-end;
+  background: #2c4fa0;
+  color: #eef2ff;
+  border: 1px solid #3b62c0;
+}
+
+.chat__line--lab {
+  align-self: flex-start;
+  background: #1c2b22;
+  color: #cdeedd;
+  border: 1px solid #2e4a38;
+}
+
+.chat__line--operador {
+  align-self: flex-start;
+  background: #2a2240;
+  color: #ddd2ff;
+  border: 1px solid #443a6e;
+}
+
+.chat__line--error {
+  align-self: center;
+  background: #3a1e20;
+  color: #ffb4b4;
+  border: 1px solid #5c2a2c;
+  font-size: 12.5px;
+}
+
+.chat__composer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid #262b36;
+  background: #14161c;
+}
+
+.chat__attach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #2a2f3a;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 15px;
+}
+
+.chat__attach:hover {
+  border-color: #4d7ef0;
+}
+
+.chat__attach-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chat__attached-tag {
+  font-size: 12px;
+  color: #9db3e8;
+  background: #1a2030;
+  border: 1px solid #2a3550;
+  border-radius: 6px;
+  padding: 4px 8px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.chat__attached-remove {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid #2a2f3a;
+  color: #9aa1b4;
+  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chat__attached-remove:hover {
+  color: #ffb4b4;
+  border-color: #5c2a2c;
+}
+
+.chat__text {
+  flex: 1;
+  min-width: 0;
+  background: #0f1115;
+  border: 1px solid #2a2f3a;
+  border-radius: 8px;
+  color: #e6e8ee;
+  padding: 8px 10px;
+  font-size: 13.5px;
+}
+
+.chat__text:focus {
+  outline: none;
+  border-color: #4d7ef0;
+}
+
+.chat__text:disabled,
+.chat__attach:has(.chat__attach-input:disabled) {
+  opacity: 0.6;
+}
+
+.chat__send {
+  flex: 0 0 auto;
+  min-width: 92px;
+}
+
+/* 4. Hueco de la franja de estado (la llena WS-4): solo reserva el espacio, sin contenido. */
+.dashboard__status-wrap {
+  flex: 0 0 auto;
+}
+
+#status-bar {
+  min-height: 1.4em;
+}
+
+@media (max-width: 480px) {
+  .stl-viewer {
+    height: 240px;
+  }
+  .chat__attached-tag {
+    max-width: 90px;
+  }
+}

@@ -37,5 +37,10 @@ bus.onJobStarted((job) => {
 });
 bus.onReset(() => motion.resetLab());
 
+// Expuesto solo para depurar: permite comprobar la escena desde la consola del navegador,
+// p.ej. SCENE_NAMES.every(n => !!window.__lab.getObject(n))
+(window as unknown as { __lab: typeof lab; __motion: typeof motion }).__lab = lab;
+(window as unknown as { __lab: typeof lab; __motion: typeof motion }).__motion = motion;
+
 window.addEventListener('resize', () => lab.resize());
 showView('dashboard');

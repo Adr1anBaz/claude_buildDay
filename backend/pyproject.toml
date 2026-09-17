@@ -8,7 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
     "itsdangerous>=2.2",
-    "strands-agents[ollama]>=0.1",
+    "anthropic>=0.70",
 ]
 
 [dependency-groups]
