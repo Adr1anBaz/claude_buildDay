@@ -449,17 +449,17 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 ---
 
 ### WS-4 · Estado y plan B — Fernando
-> **Estado:** ⬜ No iniciado
-> **Rama:** `ws/4-estado` · **Agente activo:** —
-> **Trabajando ahora en:** —
-> **Última actualización:** —
+> **Estado:** 🟦 En progreso
+> **Rama:** `ws/4-estado` · **Agente activo:** Claude de Fernando
+> **Trabajando ahora en:** F1 bus core
+> **Última actualización:** 2026-09-17 17:32
 
 **Objetivo:** el **único** estado del lab (el bus). Nadie pregunta "¿P1 está libre?": lo leen ahí. **Fernando es el único que escribe el estado.** Y el botón Demo, que es el seguro de vida del equipo.
 **Carpetas:** `backend/app/bus/`, `backend/tests/test_bus_*.py`, `frontend/src/status/`. **Depende de:** M0. **Desbloquea a:** Adrián (por eso **F1 va primero y se mergea solo**).
 
 **Mientras esperas M0:** escribe los casos de prueba de F5 en pseudocódigo a partir de §5.4 y §5.5.
 
-- ⬜ **F1** — **Bus core → merge inmediato a `main` (M1).** `service.py` según §5.4: estado inicial, `get_status`, `submit_job` (rechaza `printer_busy`; reserva el **primer cajón libre** 1→4; 4 llenos → `no_drawer` + `noDrawer:true`), `say`, `reset`, `subscribe`. Sin tiempos todavía. Con pytest.
+- 🟦 **F1** — **Bus core → merge inmediato a `main` (M1).** `service.py` según §5.4: estado inicial, `get_status`, `submit_job` (rechaza `printer_busy`; reserva el **primer cajón libre** 1→4; 4 llenos → `no_drawer` + `noDrawer:true`), `say`, `reset`, `subscribe`. Sin tiempos todavía. Con pytest.
 - ⬜ **F2** — `timeline.py`: tareas `asyncio` que marcan §5.5 × `TIMELINE_SCALE`; **cola** (D-10): al terminar el activo arranca el siguiente y se emite su `job_started`; líneas de chat de la tabla.
 - ⬜ **F3** — `routes.py`: `GET /api/state`, `POST /api/demo`, `POST /api/reset`, y `WS /ws` (manda `state` al conectar y reenvía todo lo del bus a todos los clientes).
 - ⬜ **F4** — `status/`: `mountStatusBar(el, deps)`. **Una línea**: `P1 Imprimiendo · P2 Libre · Brazo En camino · Cajones 1:base-dron.stl 2:— 3:— 4:— · Job base-dron.stl`, más `sin cajón` cuando aplique, y los botones **Demo** y **Reiniciar** (discreto). Se pinta desde `bus.onState`.
