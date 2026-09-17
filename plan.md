@@ -530,6 +530,6 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 - [ ] Subdominio definitivo (propuesto `lab.imperioon.com`).
 - [ ] ¿`cloudflared` en el VPS corre en el host o en contenedor? Define `APP_BIND` y la URL de origen del hostname.
 - [ ] Usuario SSH y carpeta destino en el VPS.
-- [ ] ¿Los 5 compañeros ya son colaboradores con `push` en `Adr1anBaz/claude_buildDay`?
+- [x] ¿Los 5 compañeros ya son colaboradores con `push`? **Sí** (verificado 2026-09-17 con `gh`): `Adr1anBaz` (admin) y con `write`: `JoseLuis0022`, `DanyFon2003`, `elias-papu`, `SebasEng`, `Rimuru022`.
 - [ ] ¿Quién tiene un `base-dron.stl` real? Si nadie, Daniela genera uno simple.
 - [ ] Hora real del demo → fija T+0:00 y las ventanas de §1.
