@@ -449,10 +449,10 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 ---
 
 ### WS-4 · Estado y plan B — Fernando
-> **Estado:** 🟦 En progreso
-> **Rama:** `ws/4-estado` · **Agente activo:** Claude de Fernando
-> **Trabajando ahora en:** por integrar (F2-F6) → luego smoke test end-to-end con el resto
-> **Última actualización:** 2026-09-17 17:50
+> **Estado:** ✅ Hecho
+> **Rama:** `ws/4-estado` · **Agente activo:** —
+> **Trabajando ahora en:** —
+> **Última actualización:** 2026-09-17 17:55
 
 **Objetivo:** el **único** estado del lab (el bus). Nadie pregunta "¿P1 está libre?": lo leen ahí. **Fernando es el único que escribe el estado.** Y el botón Demo, que es el seguro de vida del equipo.
 **Carpetas:** `backend/app/bus/`, `backend/tests/test_bus_*.py`, `frontend/src/status/`. **Depende de:** M0. **Desbloquea a:** Adrián (por eso **F1 va primero y se mergea solo**).
@@ -460,17 +460,18 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 **Mientras esperas M0:** escribe los casos de prueba de F5 en pseudocódigo a partir de §5.4 y §5.5.
 
 - ✅ **F1** — **Bus core → merge inmediato a `main` (M1).** `service.py` según §5.4: estado inicial, `get_status`, `submit_job` (rechaza `printer_busy`; reserva el **primer cajón libre** 1→4; 4 llenos → `no_drawer` + `noDrawer:true`), `say`, `reset`, `subscribe`. Sin tiempos todavía. Con pytest.
-- 🟨 **F2** — `timeline.py`: tareas `asyncio` que marcan §5.5 × `TIMELINE_SCALE`; **cola** (D-10): al terminar el activo arranca el siguiente y se emite su `job_started`; líneas de chat de la tabla.
-- 🟨 **F3** — `routes.py`: `GET /api/state`, `POST /api/demo`, `POST /api/reset`, y `WS /ws` (manda `state` al conectar y reenvía todo lo del bus a todos los clientes).
-- 🟨 **F4** — `status/`: `mountStatusBar(el, deps)`. **Una línea**: `P1 Imprimiendo · P2 Libre · Brazo En camino · Cajones 1:base-dron.stl 2:— 3:— 4:— · Job base-dron.stl`, más `sin cajón` cuando aplique, y los botones **Demo** y **Reiniciar** (discreto). Se pinta desde `bus.onState`. *(ya venía correcta del stub de WS-0, verificada sin cambios.)*
-- 🟨 **F5** — **Demo** = lo que haría Adrián: `say('lab','Recibido: base-dron.stl.')` → `submit_job('P1','estructural','base-dron.stl')` → `say('operador','Listo. base-dron.stl va a P1, preset estructural.')`; lo demás lo pone la línea de tiempo. Si P1 está ocupada o no hay cajón: `409` y **no interrumpe nada**. *(implementada dentro de F3, mismo endpoint.)*
-- 🟨 **F6** — Tests: P1 ocupada → rechaza · 2ª orden a P2 hace cola y arranca sola · 4 cajones llenos → `no_drawer` · `reset` deja el estado inicial · la secuencia de §5.5 sale en orden (con `TIMELINE_SCALE=0.05`). *(cubierta por los 24 tests repartidos en test_bus_service/timeline/routes.py, todos en verde.)*
+- ✅ **F2** — `timeline.py`: tareas `asyncio` que marcan §5.5 × `TIMELINE_SCALE`; **cola** (D-10): al terminar el activo arranca el siguiente y se emite su `job_started`; líneas de chat de la tabla.
+- ✅ **F3** — `routes.py`: `GET /api/state`, `POST /api/demo`, `POST /api/reset`, y `WS /ws` (manda `state` al conectar y reenvía todo lo del bus a todos los clientes).
+- ✅ **F4** — `status/`: `mountStatusBar(el, deps)`. **Una línea**: `P1 Imprimiendo · P2 Libre · Brazo En camino · Cajones 1:base-dron.stl 2:— 3:— 4:— · Job base-dron.stl`, más `sin cajón` cuando aplique, y los botones **Demo** y **Reiniciar** (discreto). Se pinta desde `bus.onState`. *(ya venía correcta del stub de WS-0, verificada sin cambios.)*
+- ✅ **F5** — **Demo** = lo que haría Adrián: `say('lab','Recibido: base-dron.stl.')` → `submit_job('P1','estructural','base-dron.stl')` → `say('operador','Listo. base-dron.stl va a P1, preset estructural.')`; lo demás lo pone la línea de tiempo. Si P1 está ocupada o no hay cajón: `409` y **no interrumpe nada**. *(implementada dentro de F3, mismo endpoint.)*
+- ✅ **F6** — Tests: P1 ocupada → rechaza · 2ª orden a P2 hace cola y arranca sola · 4 cajones llenos → `no_drawer` · `reset` deja el estado inicial · la secuencia de §5.5 sale en orden (con `TIMELINE_SCALE=0.05`). *(cubierta por los 24 tests repartidos en test_bus_service/timeline/routes.py, todos en verde.)*
 
 **Subagentes:** F1 solo y rápido. Después **F2 ∥ F3 ∥ F4** (archivos distintos); F5 y F6 al final.
 **Lista cuando:** sin Adrián, aprietas Demo: la franja cambia, el chat escribe y el lab de Sebas corre. A los 24 s: cajón 1 ocupado, brazo en reposo.
 
 **Bitácora WS-4**
 - 17:50 — F2/F3/F4/F5/F6 completas y con 24 tests en verde (`uv run pytest -q` en `backend/`). Por integrar a `main`.
+- 17:55 — Integrado a `main` (`f693e1c`). WS-4 completo: Demo end-to-end funciona sin Adrián. Deuda DT-4-01 registrada (timeline no cancela task en reset a medio job). Desbloqueado Adrián (WS-5) para usar el bus real.
 
 ---
 
