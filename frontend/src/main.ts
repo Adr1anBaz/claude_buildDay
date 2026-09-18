@@ -1,7 +1,7 @@
 // Arranque y cableado de la plataforma (WS-0). Contratos en plan.md §5.6.
 // Cada módulo lo monta su dueño; aquí solo se conectan entre sí.
 import './style.css';
-import type { Deps } from './contracts';
+import type { Deps, Job } from './contracts';
 import { createViews } from './views';
 import { createApiClient } from './net/api';
 import { createBusClient } from './net/bus';
@@ -30,12 +30,30 @@ const lab = mountLab(labRoot, deps);
 const motion = mountMotion(lab, deps);
 
 // El servidor es dueño del tiempo: cuando un job se vuelve el activo, el navegador solo anima.
-bus.onJobStarted((job) => {
-  if (!motion.imprimir(job.printer, job.drawer)) {
-    console.warn('[main] coreografía ignorada, ya hay una en curso', job);
+// Con cola (D-10) el servidor activa el siguiente job en t=24 s exactos, y la coreografía local
+// arrancó unos ms tarde por la red: si todavía está ocupada, `imprimir` devuelve false y la
+// segunda pieza no se animaba nunca. Por eso los jobs esperan aquí hasta que el motor los acepte.
+// TODO(DT-0-12): cambiar el sondeo por Motion.onIdle(cb) cuando WS-3 entregue.
+const pendientes: Job[] = [];
+let reintento: number | undefined;
+
+function lanzarPendientes(): void {
+  window.clearTimeout(reintento);
+  while (pendientes.length > 0 && motion.imprimir(pendientes[0].printer, pendientes[0].drawer)) {
+    pendientes.shift();
   }
+  if (pendientes.length > 0) reintento = window.setTimeout(lanzarPendientes, 150);
+}
+
+bus.onJobStarted((job) => {
+  pendientes.push(job);
+  lanzarPendientes();
 });
-bus.onReset(() => motion.resetLab());
+bus.onReset(() => {
+  pendientes.length = 0;
+  window.clearTimeout(reintento);
+  motion.resetLab();
+});
 
 // Expuesto solo para depurar: permite comprobar la escena desde la consola del navegador,
 // p.ej. SCENE_NAMES.every(n => !!window.__lab.getObject(n))
