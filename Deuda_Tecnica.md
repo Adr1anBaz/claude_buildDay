@@ -90,6 +90,11 @@ grep -rnE 'TODO|FIXME|HACK' frontend/src backend/app | grep -v 'DT-'   # TODOs h
   - **Por qué se dejó:** Sonnet 5 y Opus 5 devuelven 400 invalid_request_error 'temperature is deprecated for this model' y el agente caia siempre al plan B; el arreglo tocaba un archivo de Adrian y se aplico desde WS-0 para no bloquear la prueba con Sonnet
   - **Riesgo:** Si Adrian edita make_model en ws/5-agente habra conflicto en la integracion M2; y la lista de familias sin temperature es una lista a mano que hay que mantener
   - **Cómo se paga:** Avisar a Adrian en la Bitacora WS-0: o lo adopta en su rama, o se resuelve en P10 tomando esta version
+- **DT-0-11** · 🟢 Baja · ⬜ Abierta — El contrato no fijaba la unidad de ts y el cliente la normaliza a mano
+  - **Dónde:** frontend/src/net/bus.ts (normalizarTs)
+  - **Por qué se dejó:** plan.md 5.2 dice 'ts: number' sin unidad: el bus de WS-4 manda segundos (time.time()) y el mock de WS-0 milisegundos (Date.now()), asi que el chat del dashboard pintaba horas de enero de 1970 y todas las lineas de un job salian con la misma hora. Se normaliza en el cliente para no tocar archivos de WS-4 ni de WS-1 a mitad de la jornada
+  - **Riesgo:** La heuristica (ts < 1e12 = segundos) es correcta hasta el ano 2286, pero esconde la divergencia: si manana alguien consume ts sin pasar por bus.ts vuelve el bug
+  - **Cómo se paga:** Fijar en 5.2 que ts es epoch en milisegundos y que el bus mande time.time()*1000; despues quitar normalizarTs
 
 ---
 
