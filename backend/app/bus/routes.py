@@ -1,16 +1,29 @@
-"""WS-4 · Fernando — Estado y plan B. Rutas HTTP + WebSocket del bus (§5.3, tareas F3 y F5)."""
+"""WS-4 · Fernando — Estado y plan B. Rutas del bus (F3) + lógica de Demo (F5).
+
+Reemplaza el stub de WS-0. Conserva las rutas de §5.3 (contrato congelado).
+"""
 from __future__ import annotations
 
 import asyncio
-import logging
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
 from ..contracts import LabState
-from .service import bus
+from .service import Event, bus
+from .timeline import register as register_timeline
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
+
+register_timeline()
+
+
+def _serialize(event: Event) -> dict[str, Any]:
+    if event["type"] == "state":
+        return {"type": "state", "state": event["state"].model_dump(mode="json")}
+    if event["type"] == "job_started":
+        return {"type": "job_started", "job": event["job"].model_dump(mode="json")}
+    return event
 
 
 @router.get("/api/state", response_model=LabState)
@@ -20,12 +33,11 @@ async def get_state() -> LabState:
 
 @router.post("/api/demo")
 async def demo() -> dict[str, bool]:
-    """El plan B (F5): hace exactamente lo que haría el agente. No interrumpe una orden en curso."""
+    """F5 — lo que haría Adrián, sin LLM: siempre P1 + estructural + base-dron.stl."""
     bus.say("lab", "Recibido: base-dron.stl.")
-    resultado = bus.submit_job("P1", "estructural", "base-dron.stl")
-    if not resultado.ok:
-        detalle = "P1 está ocupada." if resultado.reason == "printer_busy" else "No hay cajón libre."
-        raise HTTPException(status_code=409, detail=detalle)
+    result = bus.submit_job("P1", "estructural", "base-dron.stl")
+    if not result.ok:
+        raise HTTPException(status_code=409, detail=result.reason)
     bus.say("operador", "Listo. base-dron.stl va a P1, preset estructural.")
     return {"ok": True}
 
@@ -38,33 +50,16 @@ async def reset() -> dict[str, bool]:
 
 @router.websocket("/ws")
 async def ws(websocket: WebSocket) -> None:
-    """Manda `state` al conectar y reenvía cada evento del bus a este cliente (§5.2).
-
-    Los envíos se serializan por una cola propia de la conexión: así dos eventos
-    seguidos (p.ej. `chat` y `state`) nunca se mandan en paralelo sobre el mismo
-    socket, que rompería el orden o la conexión.
-    """
     await websocket.accept()
-    cola: asyncio.Queue[dict[str, object]] = asyncio.Queue()
-    unsubscribe = bus.subscribe(cola.put_nowait)
+    await websocket.send_json(_serialize({"type": "state", "state": bus.get_status()}))
 
-    async def _enviar() -> None:
-        while True:
-            evento = await cola.get()
-            try:
-                await websocket.send_json(evento)
-            except Exception:
-                return
-
-    envio = asyncio.create_task(_enviar())
+    queue: asyncio.Queue[Event] = asyncio.Queue()
+    unsubscribe = bus.subscribe(queue.put_nowait)
     try:
-        await websocket.send_json({"type": "state", "state": bus.get_status().model_dump()})
         while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        pass
-    except Exception:
-        logger.debug("Conexión /ws cerrada de forma inesperada", exc_info=True)
+            event = await queue.get()
+            await websocket.send_json(_serialize(event))
+    except (WebSocketDisconnect, RuntimeError):
+        return
     finally:
         unsubscribe()
-        envio.cancel()

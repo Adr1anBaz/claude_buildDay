@@ -1,138 +1,125 @@
-"""WS-4 · Fernando — Tests del bus core (tarea F1/F6), sin coreografía de tiempo.
-
-`bus` es un singleton de proceso (plan.md D-04): cada test lo deja como lo
-encontró con el fixture `_bus_limpio`.
-"""
+"""WS-4 · Fernando — Tests de bus/service.py (F1)."""
 from __future__ import annotations
 
-import pytest
-
-from app.bus.service import bus
-from app.contracts import DRAWER_IDS, DrawerState
+from app.bus.service import Bus
 
 
-@pytest.fixture(autouse=True)
-def _bus_limpio():
-    bus.reset()
-    yield
-    bus.reset()
+def test_estado_inicial() -> None:
+    bus = Bus()
+    s = bus.get_status()
+    assert s.printers == {"P1": "Libre", "P2": "Libre"}
+    assert s.arm == "Reposo"
+    assert all(d.status == "Libre" for d in s.drawers.values())
+    assert s.job is None
+    assert s.queue == []
+    assert s.noDrawer is False
 
 
-async def test_p1_ocupada_rechaza_con_printer_busy() -> None:
-    primero = bus.submit_job("P1", "normal", "a.stl")
-    assert primero.ok is True
-
-    segundo = bus.submit_job("P1", "normal", "b.stl")
-    assert segundo.ok is False
-    assert segundo.reason == "printer_busy"
-    assert segundo.job is None
-
-
-async def test_reserva_el_primer_cajon_libre_en_orden_1_a_4() -> None:
-    r1 = bus.submit_job("P1", "normal", "a.stl")
-    assert r1.job is not None
-    assert r1.job.drawer == "cajon-1"
-
-    r2 = bus.submit_job("P2", "normal", "b.stl")
-    assert r2.job is not None
-    assert r2.job.drawer == "cajon-2"
-
-    estado = bus.get_status()
-    assert estado.drawers["cajon-1"] == DrawerState(status="Reservado", file="a.stl")
-    assert estado.drawers["cajon-2"] == DrawerState(status="Reservado", file="b.stl")
+def test_submit_job_activa_de_inmediato_si_no_hay_job_activo() -> None:
+    bus = Bus()
+    result = bus.submit_job("P1", "estructural", "base-dron.stl")
+    assert result.ok
+    assert result.job is not None
+    assert result.job.printer == "P1"
+    assert result.job.drawer == "cajon-1"
+    s = bus.get_status()
+    assert s.job == result.job
+    assert s.printers["P1"] == "Imprimiendo"
+    assert s.drawers["cajon-1"].status == "Reservado"
 
 
-async def test_cuatro_cajones_llenos_da_no_drawer() -> None:
-    # Se llenan los 4 cajones directamente: aísla la lógica de reserva de submit_job
-    # de la coreografía completa (solo hay 2 impresoras para liberar cajones a mano).
-    def _llenar(s):
-        for d in DRAWER_IDS:
-            s.drawers[d] = DrawerState(status="Ocupado", file="viejo.stl")
-
-    bus.mutate(_llenar)
-
-    resultado = bus.submit_job("P1", "normal", "nuevo.stl")
-    assert resultado.ok is False
-    assert resultado.reason == "no_drawer"
-    assert resultado.job is None
-
-    estado = bus.get_status()
-    assert estado.noDrawer is True
-    # La orden se rechazó: la impresora no debe quedar marcada como ocupada.
-    assert estado.printers["P1"] == "Libre"
+def test_printer_ocupada_rechaza() -> None:
+    bus = Bus()
+    bus.submit_job("P1", "normal", "a.stl")
+    result = bus.submit_job("P1", "normal", "b.stl")
+    assert not result.ok
+    assert result.reason == "printer_busy"
 
 
-async def test_noDrawer_se_limpia_en_la_siguiente_orden_aceptada() -> None:
-    def _llenar(s):
-        for d in DRAWER_IDS:
-            s.drawers[d] = DrawerState(status="Ocupado", file="viejo.stl")
+def test_segunda_orden_a_otra_impresora_hace_cola_y_reserva_cajon() -> None:
+    bus = Bus()
+    bus.submit_job("P1", "normal", "a.stl")
+    result = bus.submit_job("P2", "normal", "b.stl")
+    assert result.ok
+    s = bus.get_status()
+    assert s.printers["P2"] == "Imprimiendo"  # D-10: pasa a Imprimiendo de inmediato
+    assert s.job is not None and s.job.file == "a.stl"  # sigue animando el primero
+    assert len(s.queue) == 1 and s.queue[0].file == "b.stl"
+    assert s.drawers["cajon-2"].status == "Reservado"  # cajón se reserva al lanzar (D-11)
 
-    bus.mutate(_llenar)
-    bus.submit_job("P1", "normal", "rechazado.stl")
+
+def test_cuatro_cajones_llenos_rechaza_sin_cajon() -> None:
+    bus = Bus()
+    for i, cajon in enumerate(["cajon-1", "cajon-2", "cajon-3", "cajon-4"], start=1):
+        bus.store_piece(cajon, f"llenado-{i}.stl")  # type: ignore[arg-type]
+    result = bus.submit_job("P1", "normal", "nuevo.stl")
+    assert not result.ok
+    assert result.reason == "no_drawer"
     assert bus.get_status().noDrawer is True
 
-    def _liberar_uno(s):
-        s.drawers["cajon-3"] = DrawerState()
 
-    bus.mutate(_liberar_uno)
-    ok = bus.submit_job("P1", "normal", "aceptado.stl")
-    assert ok.ok is True
-    assert bus.get_status().noDrawer is False
-
-
-async def test_reset_deja_el_estado_inicial() -> None:
-    bus.submit_job("P1", "estructural", "x.stl")
-    assert bus.get_status().job is not None
-
-    bus.reset()
-    estado = bus.get_status()
-    assert estado.printers == {"P1": "Libre", "P2": "Libre"}
-    assert estado.arm == "Reposo"
-    assert all(d.status == "Libre" and d.file is None for d in estado.drawers.values())
-    assert estado.job is None
-    assert estado.queue == []
-    assert estado.noDrawer is False
-    assert estado.version == 0
-
-
-async def test_version_sube_en_cada_cambio_de_estado() -> None:
-    v0 = bus.get_status().version
+def test_complete_active_job_activa_el_siguiente_de_la_cola() -> None:
+    bus = Bus()
     bus.submit_job("P1", "normal", "a.stl")
-    v1 = bus.get_status().version
-    assert v1 > v0
-
-    bus.submit_job("P1", "normal", "rechazada.stl")  # printer_busy: no cambia el estado
-    assert bus.get_status().version == v1
-
-
-async def test_say_emite_un_evento_chat_a_los_suscriptores() -> None:
+    bus.submit_job("P2", "normal", "b.stl")
     eventos: list[dict] = []
-    unsubscribe = bus.subscribe(eventos.append)
-    try:
-        bus.say("lab", "hola")
-    finally:
-        unsubscribe()
+    bus.subscribe(lambda e: eventos.append(e))
 
-    assert len(eventos) == 1
-    assert eventos[0]["type"] == "chat"
-    assert eventos[0]["from"] == "lab"
-    assert eventos[0]["text"] == "hola"
-    assert isinstance(eventos[0]["ts"], int)
+    bus.complete_active_job()
+
+    s = bus.get_status()
+    assert s.job is not None and s.job.file == "b.stl"
+    assert s.queue == []
+    assert any(e["type"] == "job_started" and e["job"].file == "b.stl" for e in eventos)
 
 
-async def test_unsubscribe_detiene_las_notificaciones() -> None:
+def test_complete_active_job_sin_cola_deja_job_none() -> None:
+    bus = Bus()
+    bus.submit_job("P1", "normal", "a.stl")
+    bus.complete_active_job()
+    assert bus.get_status().job is None
+
+
+def test_reset_deja_estado_inicial() -> None:
+    bus = Bus()
+    bus.submit_job("P1", "normal", "a.stl")
+    bus.reset()
+    s = bus.get_status()
+    assert s.job is None
+    assert s.printers == {"P1": "Libre", "P2": "Libre"}
+    assert all(d.status == "Libre" for d in s.drawers.values())
+
+
+def test_reset_emite_reset_y_state() -> None:
+    bus = Bus()
     eventos: list[dict] = []
-    unsubscribe = bus.subscribe(eventos.append)
+    bus.subscribe(lambda e: eventos.append(e))
+    bus.reset()
+    tipos = [e["type"] for e in eventos]
+    assert tipos == ["reset", "state"]
+
+
+def test_say_emite_evento_chat() -> None:
+    bus = Bus()
+    eventos: list[dict] = []
+    bus.subscribe(lambda e: eventos.append(e))
+    bus.say("operador", "Listo. a.stl va a P1, preset normal.")
+    assert eventos[-1]["type"] == "chat"
+    assert eventos[-1]["from"] == "operador"
+
+
+def test_subscribe_devuelve_unsubscribe_funcional() -> None:
+    bus = Bus()
+    eventos: list[dict] = []
+    unsubscribe = bus.subscribe(lambda e: eventos.append(e))
     unsubscribe()
-
     bus.say("lab", "no debería llegar")
     assert eventos == []
 
 
-async def test_un_suscriptor_roto_no_tumba_al_bus() -> None:
-    def _rompe(_evento: dict) -> None:
-        raise RuntimeError("suscriptor roto a propósito")
-
-    bus.subscribe(_rompe)
-    # No debe lanzar, aunque el suscriptor de arriba reviente en cada evento.
-    bus.say("lab", "sigue vivo")
+def test_version_sube_en_cada_cambio() -> None:
+    bus = Bus()
+    v0 = bus.get_status().version
+    bus.submit_job("P1", "normal", "a.stl")
+    v1 = bus.get_status().version
+    assert v1 > v0

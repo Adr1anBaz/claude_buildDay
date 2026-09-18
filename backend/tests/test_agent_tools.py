@@ -1,130 +1,171 @@
-"""WS-5 · Adrián — Tarea A1: pruebas de las tools del agente.
+"""WS-5 · Adrián — Tests de las 2 tools del operador (A1).
 
-Usan un FakeBus con la misma firma que plan.md §5.4 (`bus.get_status`,
-`bus.submit_job`, `bus.say`, `bus.reset`, `bus.subscribe`), para no depender
-de que `app/bus/service.py` (de WS-4) ya exista.
+Sin red y sin LLM: aquí se prueba el contrato entre el agente y el bus (§5.4).
 """
 from __future__ import annotations
 
-from typing import Callable
+import inspect
 
 import pytest
 
-from app.agent import tools
-from app.contracts import Job, LabState, SubmitResult, initial_lab_state
+from app.agent.tools import Turn, build_tools
+from app.bus.service import Bus
+from app.contracts import DrawerState, Job, SubmitResult, initial_lab_state
 
 
 class FakeBus:
-    """Bus falso con la firma de plan.md §5.4, para pruebas del agente."""
+    """Bus mínimo con la firma de §5.4, para controlar el estado sin tocar a WS-4."""
 
-    def __init__(
-        self,
-        state: LabState | None = None,
-        submit_result: SubmitResult | None = None,
-    ) -> None:
-        self.state = state or initial_lab_state()
-        self._submit_result = submit_result
+    def __init__(self, result: SubmitResult | None = None) -> None:
+        self.state = initial_lab_state()
+        self.result = result
+        self.submitted: list[tuple[str, str, str]] = []
         self.said: list[tuple[str, str]] = []
-        # Cada llamada a submit_job, para comprobar que el agente NO llama a
-        # send_to_printer cuando no debe (p.ej. las dos impresoras ocupadas).
-        self.submit_calls: list[tuple[str, str, str]] = []
 
-    def get_status(self) -> LabState:
+    def get_status(self):
         return self.state
 
-    def submit_job(self, printer: str, preset: str, file: str) -> SubmitResult:
-        self.submit_calls.append((printer, preset, file))
-        if self._submit_result is not None:
-            return self._submit_result
-        # Comportamiento por defecto: como el bus real (§5.4) — rechaza si la
-        # impresora no está libre o si no hay cajón libre; si no, reserva el
-        # primer cajón libre (1→4).
-        if self.state.printers.get(printer) != "Libre":
-            return SubmitResult(ok=False, reason="printer_busy")
-        cajon = next((did for did, d in self.state.drawers.items() if d.status == "Libre"), None)
-        if cajon is None:
-            return SubmitResult(ok=False, reason="no_drawer")
-        job = Job(id="job-1", file=file, preset=preset, printer=printer, drawer=cajon)
+    def submit_job(self, printer, preset, file):
+        self.submitted.append((printer, preset, file))
+        if self.result is not None:
+            return self.result
+        # Como el bus real: cuando acepta, siempre devuelve el Job con su cajón ya asignado.
+        job = Job(id="job-1", file=file, preset=preset, printer=printer, drawer="cajon-1")
         return SubmitResult(ok=True, job=job)
 
-    def say(self, from_: str, text: str) -> None:
+    def say(self, from_, text):
         self.said.append((from_, text))
 
-    def reset(self) -> None:
-        self.state = initial_lab_state()
 
-    def subscribe(self, callback: Callable[[object], None]) -> Callable[[], None]:
-        return lambda: None
-
-
-@pytest.fixture(autouse=True)
-def _limpiar_bus():
-    """Evita que un bus de una prueba se filtre a la siguiente."""
-    yield
-    tools.set_bus(None)
+def _tools(bus, turn: Turn):
+    status, send = build_tools(bus, turn)
+    return status, send
 
 
-def test_get_lab_status_sin_bus_no_truena() -> None:
-    tools.set_bus(None)
-    resumen = tools.get_lab_status()
-    assert "no disponible" in resumen.lower()
+async def _call(t, **kwargs) -> str:
+    """Invoca la tool por debajo del decorador de Strands."""
+    return await t._tool_func(**kwargs)
 
 
-def test_get_lab_status_resumen_legible() -> None:
-    bus = FakeBus()
-    tools.set_bus(bus)
-
-    resumen = tools.get_lab_status()
-
-    assert "P1=Libre" in resumen
-    assert "P2=Libre" in resumen
-    assert "Reposo" in resumen  # brazo
-    assert "cajon-1" in resumen and "cajon-4" in resumen
-    assert "ninguno" in resumen  # sin job activo
+# ── Las tools DEBEN ser async (si no, Strands las corre en otro hilo y rompe a WS-4) ──
+def test_las_tools_son_corrutinas() -> None:
+    status, send = _tools(FakeBus(), Turn())
+    assert inspect.iscoroutinefunction(status._tool_func)
+    assert inspect.iscoroutinefunction(send._tool_func)
 
 
-def test_get_lab_status_incluye_job_activo() -> None:
-    estado = initial_lab_state()
-    estado.printers["P1"] = "Imprimiendo"
-    estado.job = Job(id="j1", file="base-dron.stl", preset="estructural", printer="P1", drawer="cajon-1")
-    bus = FakeBus(state=estado)
-    tools.set_bus(bus)
+# ── get_lab_status ────────────────────────────────────────────────────────────
+async def test_status_lab_vacio() -> None:
+    bus, turn = FakeBus(), Turn()
+    status, _ = _tools(bus, turn)
 
-    resumen = tools.get_lab_status()
+    texto = await _call(status)
 
-    assert "base-dron.stl" in resumen
-    assert "P1=Imprimiendo" in resumen
-
-
-def test_send_to_printer_ok() -> None:
-    job = Job(id="j1", file="base-dron.stl", preset="estructural", printer="P1", drawer="cajon-2")
-    bus = FakeBus(submit_result=SubmitResult(ok=True, job=job))
-    tools.set_bus(bus)
-
-    texto = tools.send_to_printer("P1", "estructural", "base-dron.stl")
-
-    assert texto == "OK: base-dron.stl a P1, preset estructural, cajón reservado cajon-2"
+    assert "P1: Libre" in texto and "P2: Libre" in texto
+    assert "Brazo: Reposo" in texto
+    assert "Cajones libres: 4/4" in texto
+    assert turn.calls == ["get_lab_status"]
 
 
-def test_send_to_printer_impresora_ocupada() -> None:
-    bus = FakeBus(submit_result=SubmitResult(ok=False, reason="printer_busy"))
-    tools.set_bus(bus)
+async def test_status_avisa_cuando_no_hay_impresora_libre() -> None:
+    bus, turn = FakeBus(), Turn()
+    bus.state.printers["P1"] = "Imprimiendo"
+    bus.state.printers["P2"] = "Imprimiendo"
+    status, _ = _tools(bus, turn)
 
-    texto = tools.send_to_printer("P1", "normal", "x.stl")
+    texto = await _call(status)
 
-    assert texto == "RECHAZADO: P1 está ocupada"
-
-
-def test_send_to_printer_sin_cajon() -> None:
-    bus = FakeBus(submit_result=SubmitResult(ok=False, reason="no_drawer"))
-    tools.set_bus(bus)
-
-    texto = tools.send_to_printer("P2", "fino", "x.stl")
-
-    assert texto == "RECHAZADO: sin cajón libre"
+    assert "NINGUNA impresora libre" in texto
+    assert "Puedes enviar a" not in texto
 
 
-def test_send_to_printer_sin_bus_no_truena() -> None:
-    tools.set_bus(None)
-    texto = tools.send_to_printer("P1", "normal", "x.stl")
-    assert texto.startswith("RECHAZADO")
+async def test_status_avisa_cuando_no_hay_cajones() -> None:
+    bus, turn = FakeBus(), Turn()
+    for d in bus.state.drawers:
+        bus.state.drawers[d] = DrawerState(status="Ocupado", file="x.stl")
+    status, _ = _tools(bus, turn)
+
+    texto = await _call(status)
+
+    assert "Cajones libres: 0/4" in texto
+    assert "reiniciar" in texto.lower()
+
+
+# ── send_to_printer ───────────────────────────────────────────────────────────
+async def test_send_ok_registra_el_job_real_en_el_turno() -> None:
+    bus, turn = FakeBus(), Turn()
+    _, send = _tools(bus, turn)
+
+    texto = await _call(send, impresora="P1", preset="estructural", archivo="base-dron.stl")
+
+    assert texto.startswith("OK:")
+    assert bus.submitted == [("P1", "estructural", "base-dron.stl")]
+    assert turn.sent is not None
+    assert turn.sent.printer == "P1" and turn.sent.preset == "estructural"
+    assert turn.calls == ["send_to_printer"]
+
+
+async def test_send_impresora_ocupada_sugiere_la_otra() -> None:
+    bus, turn = FakeBus(SubmitResult(ok=False, reason="printer_busy")), Turn()
+    _, send = _tools(bus, turn)
+
+    texto = await _call(send, impresora="P1", preset="normal", archivo="a.stl")
+
+    assert texto.startswith("RECHAZADO:")
+    assert "P2" in texto
+    assert turn.sent is None
+    assert turn.rejections == ["printer_busy"]
+
+
+async def test_send_sin_cajon_prohibe_reintentar() -> None:
+    bus, turn = FakeBus(SubmitResult(ok=False, reason="no_drawer")), Turn()
+    _, send = _tools(bus, turn)
+
+    texto = await _call(send, impresora="P1", preset="normal", archivo="a.stl")
+
+    assert "sin cajón" in texto
+    assert "No vuelvas a intentarlo" in texto
+    assert turn.rejections == ["no_drawer"]
+
+
+async def test_send_sin_archivo_no_toca_el_bus() -> None:
+    bus, turn = FakeBus(), Turn()
+    _, send = _tools(bus, turn)
+
+    texto = await _call(send, impresora="P1", preset="normal", archivo="   ")
+
+    assert texto.startswith("RECHAZADO:")
+    assert bus.submitted == []
+    assert turn.sent is None
+
+
+# ── Contra el bus REAL de WS-4 (§5.4), sin fakes de por medio ─────────────────
+@pytest.fixture
+def bus_real():
+    b = Bus()
+    yield b
+    b.reset()
+
+
+async def test_contra_el_bus_real_el_lab_elige_el_cajon(bus_real: Bus) -> None:
+    turn = Turn()
+    status, send = _tools(bus_real, turn)
+
+    texto = await _call(send, impresora="P1", preset="estructural", archivo="base-dron.stl")
+
+    assert "cajón reservado cajon-1" in texto  # el agente nunca lo eligió
+    assert bus_real.get_status().printers["P1"] == "Imprimiendo"
+
+    # Y el estado que ve el agente después ya refleja la realidad.
+    assert "P1: Imprimiendo" in await _call(status)
+
+
+async def test_contra_el_bus_real_segunda_orden_a_p1_rebota(bus_real: Bus) -> None:
+    turn = Turn()
+    _, send = _tools(bus_real, turn)
+
+    await _call(send, impresora="P1", preset="normal", archivo="a.stl")
+    texto = await _call(send, impresora="P1", preset="normal", archivo="b.stl")
+
+    assert "ocupada" in texto
+    assert turn.sent is not None and turn.sent.file == "a.stl"  # se quedó el que SÍ pasó

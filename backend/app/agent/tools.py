@@ -1,98 +1,147 @@
-"""WS-5 · Adrián — Operador (agente). Tarea A1: las 2 herramientas del agente.
+"""WS-5 · Adrián — Las 2 tools del operador (A1, plan.md §7).
 
-`get_lab_status` y `send_to_printer` son las únicas dos tools que el modelo
-puede llamar. Ambas hablan con el bus (`app.bus.service.bus`, propiedad de
-WS-4) a través de la API descrita en plan.md §5.4:
+El agente solo puede hacer dos cosas: *mirar* el lab y *lanzar* un trabajo.
+Todo lo demás (elegir cajón, mover el brazo, avanzar el tiempo) es de WS-4.
 
-    bus.get_status() -> LabState
-    bus.submit_job(printer, preset, file) -> SubmitResult
-    bus.say(from_, text) -> None
-    bus.reset() -> None
-    bus.subscribe(callback) -> unsubscribe
+Dos reglas de diseño que no son negociables:
 
-IMPORTANTE: el agente NUNCA elige cajón. `submit_job` reserva el primer
-cajón libre automáticamente (o rechaza con `no_drawer`); esta herramienta
-solo reporta lo que el bus decidió.
+1. **Las tools son `async def`.** Strands ejecuta las tools síncronas en
+   `asyncio.to_thread` (`strands/tools/decorator.py:654`). Desde un hilo sin event
+   loop, `bus.submit_job` rompería a WS-4: su `timeline` hace `asyncio.create_task`
+   y el hub de `/ws` escribe en un `asyncio.Queue` (que no es thread-safe).
+   Con `async def`, Strands las corre en el loop principal.
 
-`app/bus/service.py` lo está escribiendo WS-4 en paralelo: la importación de
-`bus` es defensiva (no truena si el módulo todavía no existe). En producción
-`operator.py`/`routes.py` inyectan el bus real con `set_bus`; en los tests se
-inyecta un `FakeBus` con la misma firma.
+2. **Se construyen por orden con `build_tools(bus, turn)`.** El `Turn` guarda lo que
+   de verdad pasó en esta orden: es la fuente del texto que ve el usuario y la base
+   de la guardia anti-alucinación de A3. El agente nunca redacta el "Listo".
 """
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Callable, Literal
 
-try:  # pragma: no cover - depende de que WS-4 ya haya publicado el bus
-    from ..bus.service import bus as _default_bus  # type: ignore[import-not-found]
-except Exception:  # noqa: BLE001 - service.py puede no existir todavía
-    _default_bus = None
+from strands import tool
 
-# Bus activo. Se sustituye con `set_bus` (producción: el bus real de WS-4;
-# tests: un FakeBus con la misma firma que plan.md §5.4).
-_bus: Any = _default_bus
+from ..contracts import DRAWER_IDS, PRINTER_IDS, Job, SubmitResult
 
 
-def set_bus(bus_instance: Any) -> None:
-    """Inyecta el bus que usarán las tools (real o `FakeBus` de pruebas)."""
-    global _bus
-    _bus = bus_instance
+@dataclass
+class Turn:
+    """Lo que ocurrió durante UNA orden. Vive lo que vive la petición (D-15: sin memoria)."""
+
+    calls: list[str] = field(default_factory=list)
+    """Nombres de las tools llamadas, en orden. Lo usa A5 para medir el comportamiento."""
+
+    sent: Job | None = None
+    """El job que el bus aceptó de verdad. Si es None, NADA se lanzó: prohibido decir "Listo"."""
+
+    rejections: list[str] = field(default_factory=list)
+    """Razones de los rechazos del bus (`printer_busy`, `no_drawer`)."""
 
 
-def get_lab_status() -> str:
-    """Consulta el estado real del laboratorio.
+def build_tools(
+    bus: Any,
+    turn: Turn,
+    on_launch: Callable[[Job], None] | None = None,
+) -> list[Any]:
+    """Crea las tools atadas a este bus y a este turno.
 
-    Devuelve un resumen compacto y legible: estado de las impresoras P1 y
-    P2, del brazo, de los 4 cajones y del job activo (si hay uno). No
-    recibe argumentos. Llama siempre a esta herramienta antes de decidir
-    nada: nunca asumas que algo está libre sin comprobarlo aquí.
+    `bus` se recibe por parámetro (no se importa) para poder pasar un `FakeBus` en los
+    tests con la firma de §5.4, sin monkeypatch y sin tocar el bus real de WS-4.
+
+    `on_launch` se dispara en el instante en que el bus acepta el trabajo, no cuando el
+    modelo termina de hablar: así la línea del operador sale antes que las de la línea de
+    tiempo, como en §5.5, y el chat del agente se ve igual que el del botón Demo (D-14).
     """
-    if _bus is None:
-        return "Estado no disponible: el bus del laboratorio todavía no está listo."
 
-    estado = _bus.get_status()
+    @tool
+    async def get_lab_status() -> str:
+        """Consulta el estado actual del laboratorio: impresoras, brazo y cajones.
 
-    impresoras = ", ".join(f"{pid}={status}" for pid, status in estado.printers.items())
-    cajones = ", ".join(
-        f"{did}={drawer.status}" + (f":{drawer.file}" if drawer.file else "")
-        for did, drawer in estado.drawers.items()
-    )
+        Llama SIEMPRE esta herramienta antes de enviar nada a imprimir.
 
-    if estado.job is not None:
-        job = estado.job
-        job_txt = f"{job.file} en {job.printer}, preset {job.preset}, fase {job.phase}"
+        Returns:
+            Un resumen en una línea con el estado de cada impresora, del brazo y de los cajones.
+        """
+        turn.calls.append("get_lab_status")
+        return _resumen(bus.get_status())
+
+    @tool
+    async def send_to_printer(
+        impresora: Literal["P1", "P2"],
+        preset: Literal["fino", "normal", "estructural"],
+        archivo: str,
+    ) -> str:
+        """Lanza un trabajo de impresión en la impresora indicada.
+
+        El cajón lo elige el laboratorio: tú nunca lo decides ni lo mencionas.
+        Solo llama esta herramienta si la impresora aparece como 'Libre' en el estado.
+
+        Args:
+            impresora: 'P1' o 'P2'. Debe estar Libre.
+            preset: 'fino' (detalle o estética), 'estructural' (carga, motores, soportes)
+                o 'normal' (cualquier otro caso).
+            archivo: Nombre del archivo .stl que adjuntó el usuario.
+
+        Returns:
+            'OK: …' si el laboratorio aceptó el trabajo, o 'RECHAZADO: …' con el motivo.
+        """
+        turn.calls.append("send_to_printer")
+
+        if not archivo or not archivo.strip():
+            return "RECHAZADO: no hay archivo. Pídele al usuario que adjunte un .stl."
+
+        result: SubmitResult = bus.submit_job(impresora, preset, archivo.strip())
+
+        if result.ok and result.job is not None:
+            turn.sent = result.job
+            if on_launch is not None:
+                on_launch(result.job)
+            return (
+                f"OK: {result.job.file} en {result.job.printer}, preset {result.job.preset}, "
+                f"cajón reservado {result.job.drawer}."
+            )
+
+        reason = result.reason or "desconocido"
+        turn.rejections.append(reason)
+
+        if reason == "printer_busy":
+            otra = "P2" if impresora == "P1" else "P1"
+            return (
+                f"RECHAZADO: {impresora} está ocupada. Consulta el estado otra vez: "
+                f"si {otra} está Libre, envíalo ahí; si no, dile al usuario que espere."
+            )
+        if reason == "no_drawer":
+            return (
+                "RECHAZADO: sin cajón. Los 4 cajones están llenos y no se puede imprimir nada. "
+                "Dile al usuario que reinicie el laboratorio. No vuelvas a intentarlo."
+            )
+        return f"RECHAZADO: {reason}."
+
+    return [get_lab_status, send_to_printer]
+
+
+def _resumen(state: Any) -> str:
+    """Estado del lab en una línea, pensado para que un modelo chico no se confunda."""
+    impresoras = " · ".join(f"{p}: {state.printers[p]}" for p in PRINTER_IDS)
+
+    libres = [d for d in DRAWER_IDS if state.drawers[d].status == "Libre"]
+    if libres:
+        cajones = f"Cajones libres: {len(libres)}/{len(DRAWER_IDS)}"
     else:
-        job_txt = "ninguno"
+        cajones = "Cajones libres: 0/4 (NO se puede imprimir: hay que reiniciar el lab)"
 
-    return (
-        f"Impresoras: {impresoras}. Brazo: {estado.arm}. "
-        f"Cajones: {cajones}. Job actual: {job_txt}."
-    )
+    partes = [impresoras, f"Brazo: {state.arm}", cajones]
 
+    if state.job is not None:
+        partes.append(f"Trabajo en curso: {state.job.file} en {state.job.printer}")
+    if state.queue:
+        partes.append(f"En cola: {len(state.queue)}")
 
-def send_to_printer(impresora: str, preset: str, archivo: str) -> str:
-    """Envía un trabajo de impresión al bus.
+    disponibles = [p for p in PRINTER_IDS if state.printers[p] == "Libre"]
+    if not disponibles:
+        partes.append("NINGUNA impresora libre: no envíes nada, pide que espere")
+    elif libres:
+        partes.append(f"Puedes enviar a: {', '.join(disponibles)}")
 
-    Args:
-        impresora: la impresora a usar, "P1" o "P2". Debe estar "Libre"
-            según `get_lab_status` — llama esa herramienta primero.
-        preset: "fino", "normal" o "estructural", según lo que pida el
-            usuario.
-        archivo: el nombre del archivo a imprimir.
-
-    El bus reserva el primer cajón libre automáticamente: esta herramienta
-    nunca elige el cajón, solo reporta el resultado. Puede rechazar el
-    trabajo si la impresora está ocupada o si no hay cajón libre.
-    """
-    if _bus is None:
-        return "RECHAZADO: el bus del laboratorio todavía no está listo."
-
-    resultado = _bus.submit_job(impresora, preset, archivo)
-
-    if resultado.ok and resultado.job is not None:
-        return f"OK: {archivo} a {impresora}, preset {preset}, cajón reservado {resultado.job.drawer}"
-    if resultado.reason == "printer_busy":
-        return f"RECHAZADO: {impresora} está ocupada"
-    if resultado.reason == "no_drawer":
-        return "RECHAZADO: sin cajón libre"
-    return "RECHAZADO: no se pudo enviar el trabajo"
+    return " · ".join(partes)

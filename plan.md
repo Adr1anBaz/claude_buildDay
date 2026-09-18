@@ -76,8 +76,8 @@ Hoy vamos a tomar atajos a propósito. La regla es que **ninguno se quede solo e
 
 | Fase | Qué | Ventana | Estado | Sale con |
 |---|---|---|---|---|
-| **0** | Cimientos: esqueleto, contratos en código, mocks | T+0:00 → T+0:45 | 🟦 | **M0**: `main` corre en local con mock |
-| **1** | Módulos en paralelo (6 workstreams) | T+0:45 → T+2:45 | ⬜ | **M1** (T+1:15) escena gris + bus core · **M2** módulos completos |
+| **0** | Cimientos: esqueleto, contratos en código, mocks | T+0:00 → T+0:45 | ✅ | **M0**: `main` corre en local con mock |
+| **1** | Módulos en paralelo (6 workstreams) | T+0:45 → T+2:45 | 🟦 | **M1** (T+1:15) escena gris + bus core · **M2** módulos completos |
 | **2** | Integración en `main` | T+2:45 → T+3:30 | ⬜ | **M3**: camino feliz de punta a punta en local |
 | **3** | Deploy final + ensayo del demo y del plan B | T+3:30 → T+4:15 | ⬜ | **M4**: URL pública funcionando |
 | **4** | Pulido (solo si sobra tiempo) | resto | ⬜ | — |
@@ -336,17 +336,17 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 ### WS-0 · Plataforma — José Luis
 > **Estado:** 🟦 En progreso
 > **Rama:** `ws/0-plataforma` · **Agente activo:** Claude de José Luis
-> **Trabajando ahora en:** Fase 0 completa (P1→P5): monorepo, contratos, esqueletos y mock
-> **Última actualización:** 2026-09-17 17:06
+> **Trabajando ahora en:** P6 auth · P7 Docker · P8 Ollama por Tailscale · P9 deploy temprano
+> **Última actualización:** 2026-09-17 17:12
 
 **Objetivo:** que los otros 5 puedan trabajar en paralelo sin pisarse, y que lo que salga se pueda desplegar. **Fase 0 es bloqueante para todos: es la prioridad absoluta.**
 
 **Fase 0 — Cimientos**
-- 🟦 **P1** — Monorepo: `frontend/` (Vite + TS estricto + `three` + `@types/three`), `backend/` (`uv`, `requires-python >=3.12,<3.13`, fastapi, uvicorn, pydantic, `strands-agents[ollama]`, pytest, httpx), ampliar el `.gitignore` que ya existe, `README.md` con §4.4, y `CLAUDE.md` que diga "corre `/ws-start`, sigue `plan.md` §0 y usa las skills `/plan-update`, `/deuda` y `/ws-merge`". Agregar el script `typecheck` a `frontend/package.json` (lo usa `/ws-merge`). *Hecho cuando:* `npm run dev`, `npm run typecheck` y `uv run pytest` corren en limpio.
-- 🟦 **P2** — Contratos en código: `frontend/src/contracts.ts` y `backend/app/contracts.py` (Pydantic), espejo exacto de §5. *Hecho cuando:* ambos compilan y §5 no dice nada que el código no diga.
-- 🟦 **P3** — Esqueleto frontend: `index.html` con `#dashboard-root` y `#lab-root`; `views.ts`; `main.ts` con el cableado de §5.6; **stubs** de `mountDashboard` / `mountLab` / `mountMotion` / `mountStatusBar` en la carpeta de cada quien (para que todo importe y compile); `net/api.ts`, `net/bus.ts` (WebSocket real con reconexión) y `net/mock.ts` (`?mock=1`: estado inicial + job falso de 24 s al llamar `demo()` o `chat()`). *Hecho cuando:* con `?mock=1` se ve en consola la secuencia completa de §5.5.
-- 🟦 **P4** — Esqueleto backend: `main.py` (app factory, incluye routers de `bus/` y `agent/`, sirve `frontend/dist`), `config.py` (§5.8), `/api/health`, routers **stub** que responden `501`. *Hecho cuando:* `GET /api/health` → 200 y `/` sirve el build.
-- 🟦 **P5** — Push a `main` = **M0**. Crear las 6 ramas. Avisar al equipo y anotar **T+0:00** en §1.
+- ✅ **P1** — Monorepo: `frontend/` (Vite + TS estricto + `three` + `@types/three`), `backend/` (`uv`, `requires-python >=3.12,<3.13`, fastapi, uvicorn, pydantic, `strands-agents[ollama]`, pytest, httpx), ampliar el `.gitignore` que ya existe, `README.md` con §4.4, y `CLAUDE.md` que diga "corre `/ws-start`, sigue `plan.md` §0 y usa las skills `/plan-update`, `/deuda` y `/ws-merge`". Agregar el script `typecheck` a `frontend/package.json` (lo usa `/ws-merge`). *Hecho cuando:* `npm run dev`, `npm run typecheck` y `uv run pytest` corren en limpio.
+- ✅ **P2** — Contratos en código: `frontend/src/contracts.ts` y `backend/app/contracts.py` (Pydantic), espejo exacto de §5. *Hecho cuando:* ambos compilan y §5 no dice nada que el código no diga.
+- ✅ **P3** — Esqueleto frontend: `index.html` con `#dashboard-root` y `#lab-root`; `views.ts`; `main.ts` con el cableado de §5.6; **stubs** de `mountDashboard` / `mountLab` / `mountMotion` / `mountStatusBar` en la carpeta de cada quien (para que todo importe y compile); `net/api.ts`, `net/bus.ts` (WebSocket real con reconexión) y `net/mock.ts` (`?mock=1`: estado inicial + job falso de 24 s al llamar `demo()` o `chat()`). *Hecho cuando:* con `?mock=1` se ve en consola la secuencia completa de §5.5.
+- ✅ **P4** — Esqueleto backend: `main.py` (app factory, incluye routers de `bus/` y `agent/`, sirve `frontend/dist`), `config.py` (§5.8), `/api/health`, routers **stub** que responden `501`. *Hecho cuando:* `GET /api/health` → 200 y `/` sirve el build.
+- ✅ **P5** — Push a `main` = **M0**. Crear las 6 ramas. Avisar al equipo y anotar **T+0:00** en §1.
 
 **Fase 1 — en paralelo con los demás**
 - ⬜ **P6** — Auth (D-09): `auth.py`, página mínima `/login`, cookie firmada, middleware que protege todo (incluido `/ws`) salvo `/api/health` y `/login`. Apagada si `LAB_PASSWORD` está vacío.
@@ -362,6 +362,7 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 **Subagentes:** P1→P2 en serie; después **P3 ∥ P4** (frontend y backend no comparten archivos). En Fase 1: **P6 ∥ P7 ∥ P8**, luego P9.
 
 **Bitácora WS-0**
+- 2026-09-17 17:12 — **M0 LISTO.** Esqueleto en `main`: frontend (Vite+TS+Three, contratos, mock `?mock=1`) y backend (FastAPI, contratos, auth, routers stub). Verificado con typecheck, build, pytest, servidor real y Chrome. **Los 5 workstreams ya pueden correr `/ws-start N`.** Stubs registrados como DT-0-08: cada dueño reemplaza el suyo conservando la firma.
 - 2026-09-17 17:06 — Arranca Fase 0. Skills y scripts del proyecto ya están en `main`; los demás: `git pull` + `/ws-start N`.
 
 ---
@@ -448,47 +449,48 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 ---
 
 ### WS-4 · Estado y plan B — Fernando
-> **Estado:** ⬜ No iniciado
+> **Estado:** ✅ Hecho
 > **Rama:** `ws/4-estado` · **Agente activo:** —
 > **Trabajando ahora en:** —
-> **Última actualización:** —
+> **Última actualización:** 2026-09-17 17:55
 
 **Objetivo:** el **único** estado del lab (el bus). Nadie pregunta "¿P1 está libre?": lo leen ahí. **Fernando es el único que escribe el estado.** Y el botón Demo, que es el seguro de vida del equipo.
 **Carpetas:** `backend/app/bus/`, `backend/tests/test_bus_*.py`, `frontend/src/status/`. **Depende de:** M0. **Desbloquea a:** Adrián (por eso **F1 va primero y se mergea solo**).
 
 **Mientras esperas M0:** escribe los casos de prueba de F5 en pseudocódigo a partir de §5.4 y §5.5.
 
-- ⬜ **F1** — **Bus core → merge inmediato a `main` (M1).** `service.py` según §5.4: estado inicial, `get_status`, `submit_job` (rechaza `printer_busy`; reserva el **primer cajón libre** 1→4; 4 llenos → `no_drawer` + `noDrawer:true`), `say`, `reset`, `subscribe`. Sin tiempos todavía. Con pytest.
-- ⬜ **F2** — `timeline.py`: tareas `asyncio` que marcan §5.5 × `TIMELINE_SCALE`; **cola** (D-10): al terminar el activo arranca el siguiente y se emite su `job_started`; líneas de chat de la tabla.
-- ⬜ **F3** — `routes.py`: `GET /api/state`, `POST /api/demo`, `POST /api/reset`, y `WS /ws` (manda `state` al conectar y reenvía todo lo del bus a todos los clientes).
-- ⬜ **F4** — `status/`: `mountStatusBar(el, deps)`. **Una línea**: `P1 Imprimiendo · P2 Libre · Brazo En camino · Cajones 1:base-dron.stl 2:— 3:— 4:— · Job base-dron.stl`, más `sin cajón` cuando aplique, y los botones **Demo** y **Reiniciar** (discreto). Se pinta desde `bus.onState`.
-- ⬜ **F5** — **Demo** = lo que haría Adrián: `say('lab','Recibido: base-dron.stl.')` → `submit_job('P1','estructural','base-dron.stl')` → `say('operador','Listo. base-dron.stl va a P1, preset estructural.')`; lo demás lo pone la línea de tiempo. Si P1 está ocupada o no hay cajón: `409` y **no interrumpe nada**.
-- ⬜ **F6** — Tests: P1 ocupada → rechaza · 2ª orden a P2 hace cola y arranca sola · 4 cajones llenos → `no_drawer` · `reset` deja el estado inicial · la secuencia de §5.5 sale en orden (con `TIMELINE_SCALE=0.05`).
+- ✅ **F1** — **Bus core → merge inmediato a `main` (M1).** `service.py` según §5.4: estado inicial, `get_status`, `submit_job` (rechaza `printer_busy`; reserva el **primer cajón libre** 1→4; 4 llenos → `no_drawer` + `noDrawer:true`), `say`, `reset`, `subscribe`. Sin tiempos todavía. Con pytest.
+- ✅ **F2** — `timeline.py`: tareas `asyncio` que marcan §5.5 × `TIMELINE_SCALE`; **cola** (D-10): al terminar el activo arranca el siguiente y se emite su `job_started`; líneas de chat de la tabla.
+- ✅ **F3** — `routes.py`: `GET /api/state`, `POST /api/demo`, `POST /api/reset`, y `WS /ws` (manda `state` al conectar y reenvía todo lo del bus a todos los clientes).
+- ✅ **F4** — `status/`: `mountStatusBar(el, deps)`. **Una línea**: `P1 Imprimiendo · P2 Libre · Brazo En camino · Cajones 1:base-dron.stl 2:— 3:— 4:— · Job base-dron.stl`, más `sin cajón` cuando aplique, y los botones **Demo** y **Reiniciar** (discreto). Se pinta desde `bus.onState`. *(ya venía correcta del stub de WS-0, verificada sin cambios.)*
+- ✅ **F5** — **Demo** = lo que haría Adrián: `say('lab','Recibido: base-dron.stl.')` → `submit_job('P1','estructural','base-dron.stl')` → `say('operador','Listo. base-dron.stl va a P1, preset estructural.')`; lo demás lo pone la línea de tiempo. Si P1 está ocupada o no hay cajón: `409` y **no interrumpe nada**. *(implementada dentro de F3, mismo endpoint.)*
+- ✅ **F6** — Tests: P1 ocupada → rechaza · 2ª orden a P2 hace cola y arranca sola · 4 cajones llenos → `no_drawer` · `reset` deja el estado inicial · la secuencia de §5.5 sale en orden (con `TIMELINE_SCALE=0.05`). *(cubierta por los 24 tests repartidos en test_bus_service/timeline/routes.py, todos en verde.)*
 
 **Subagentes:** F1 solo y rápido. Después **F2 ∥ F3 ∥ F4** (archivos distintos); F5 y F6 al final.
 **Lista cuando:** sin Adrián, aprietas Demo: la franja cambia, el chat escribe y el lab de Sebas corre. A los 24 s: cajón 1 ocupado, brazo en reposo.
 
 **Bitácora WS-4**
-- _(vacía)_
+- 17:50 — F2/F3/F4/F5/F6 completas y con 24 tests en verde (`uv run pytest -q` en `backend/`). Por integrar a `main`.
+- 17:55 — Integrado a `main` (`f693e1c`). WS-4 completo: Demo end-to-end funciona sin Adrián. Deuda DT-4-01 registrada (timeline no cancela task en reset a medio job). Desbloqueado Adrián (WS-5) para usar el bus real.
 
 ---
 
 ### WS-5 · Operador (agente) — Adrián
-> **Estado:** ⬜ No iniciado
-> **Rama:** `ws/5-agente` · **Agente activo:** —
-> **Trabajando ahora en:** —
-> **Última actualización:** —
+> **Estado:** ✅ Hecho
+> **Rama:** `ws/5-agente` · **Agente activo:** Claude de Adrián
+> **Trabajando ahora en:** — (A1–A5 en `main`; listo para M2)
+> **Última actualización:** 2026-09-17 18:03
 
 **Objetivo:** el agente que recibe el chat, mira el lab, decide **impresora + preset + frase**, y lanza la orden con sus 2 tools.
 **Carpetas:** `backend/app/agent/`, `backend/tests/test_agent_*.py`. **Depende de:** M0; de **M1** para usar el bus real (antes, un `FakeBus` en tus tests con la firma de §5.4).
 
 **Mientras esperas M0 (A0):** en una carpeta temporal fuera del repo, verifica que tu Ollama responde y que un "hola mundo" de Strands con **una tool** funciona con `qwen3:8b` (si no entra, `qwen3:4b`). Revisa en la doc actual de Strands el import de `OllamaModel` y cómo apagar el *thinking* de qwen3 (parámetro `think:false` de Ollama, o `/no_think` en el prompt). Anota lo que funcionó en tu Bitácora.
 
-- ⬜ **A1** — `tools.py`: `get_lab_status()` (resumen compacto del estado) y `send_to_printer(impresora, preset, archivo)` → llama `bus.submit_job`; devuelve texto claro: `OK: … cajón reservado cajon-1` / `RECHAZADO: P1 está ocupada` / `RECHAZADO: sin cajón`. **El agente nunca elige cajón.** Tests con `FakeBus`.
-- ⬜ **A2** — `operator.py`: Strands + `OllamaModel(host=OLLAMA_BASE_URL, model_id=OLLAMA_MODEL)`, temperatura 0, *thinking* apagado, tope de iteraciones de tools, **sin memoria entre órdenes** (D-15). *System prompt* con las reglas: siempre llama `get_lab_status` primero · elige impresora `Libre` · preset por el texto (`fino` = detalle/estética, `estructural` = carga/motores/soportes, `normal` = lo demás) · si la tool rechaza, prueba la otra impresora · si ambas ocupadas **no** llames `send_to_printer` y di que espere · si no hay archivo, pídelo · respuesta de **una frase**: `Listo. {archivo} va a {P}, preset {preset}.` · nunca inventes que algo está libre.
-- ⬜ **A3** — `routes.py` `POST /api/chat`: candado de una orden a la vez (`429` si ocupado) · `bus.say('lab','Recibido: {file}.')` · correr el agente con `AGENT_TIMEOUT_S` · publicar la respuesta con `bus.say('operador', reply)`. **Guardia anti-alucinación:** si la respuesta dice "Listo" pero en este turno ningún `send_to_printer` devolvió `OK`, se sustituye por un mensaje seguro. Ollama caído o timeout → `ok:false` y línea `Operador no disponible. Usa Demo.`
-- ⬜ **A4** — `GET /api/agent/health` + *warm-up* del modelo al arrancar (que la primera orden del demo no pague la carga).
-- ⬜ **A5** — Guion de aceptación (script o test marcado `ollama`): ① lab libre + `base-dron.stl` + "4 motores, 250 mm" → P1, estructural · ② P1 ocupada → P2 · ③ ambas ocupadas → **no** llama `send_to_printer`, dice que espere · ④ sin archivo → lo pide. Correr cada uno **5 veces** y anotar el porcentaje de acierto en la Bitácora.
+- ✅ **A1** — `tools.py`: `get_lab_status()` (resumen compacto del estado) y `send_to_printer(impresora, preset, archivo)` → llama `bus.submit_job`; devuelve texto claro: `OK: … cajón reservado cajon-1` / `RECHAZADO: P1 está ocupada` / `RECHAZADO: sin cajón`. **El agente nunca elige cajón.** Tests con `FakeBus`.
+- ✅ **A2** — `operator.py`: Strands + `AnthropicModel(model_id=ANTHROPIC_MODEL, max_tokens=300)` con **Haiku** (`claude-haiku-4-5`, ver Bitácora 17:48), temperatura 0, tope de iteraciones de tools (`limits={'turns': 4}`), **sin memoria entre órdenes** (D-15). *System prompt* con las reglas: siempre llama `get_lab_status` primero · elige impresora `Libre` · preset por el texto (`fino` = detalle/estética, `estructural` = carga/motores/soportes, `normal` = lo demás) · si la tool rechaza, prueba la otra impresora · si ambas ocupadas **no** llames `send_to_printer` y di que espere · si no hay archivo, pídelo · respuesta de **una frase**: `Listo. {archivo} va a {P}, preset {preset}.` · nunca inventes que algo está libre.
+- ✅ **A3** — `routes.py` `POST /api/chat`: candado de una orden a la vez (`429` si ocupado) · `bus.say('lab','Recibido: {file}.')` · correr el agente con `AGENT_TIMEOUT_S` · publicar la respuesta con `bus.say('operador', reply)`. **Guardia anti-alucinación:** si la respuesta dice "Listo" pero en este turno ningún `send_to_printer` devolvió `OK`, se sustituye por un mensaje seguro. Ollama caído o timeout → `ok:false` y línea `Operador no disponible. Usa Demo.`
+- ✅ **A4** — `GET /api/agent/health` + *warm-up* del modelo al arrancar (que la primera orden del demo no pague la carga).
+- ✅ **A5** — Guion de aceptación (script o test marcado `ollama`): ① lab libre + `base-dron.stl` + "4 motores, 250 mm" → P1, estructural · ② P1 ocupada → P2 · ③ ambas ocupadas → **no** llama `send_to_printer`, dice que espere · ④ sin archivo → lo pide. Correr cada uno **5 veces** y anotar el porcentaje de acierto en la Bitácora.
 
 **Subagentes:** **A1 ∥ A2**; luego A3; A4 y A5 al final.
 **Lista cuando:** le mandas `base-dron.stl` + "4 motores, 250 mm" y consulta el lab, elige impresora libre y deja el job en el bus. Con P1 ocupada, la siguiente va a P2. Con ambas ocupadas, no llama `send_to_printer` y dice que espere.
@@ -496,7 +498,15 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 ⚠️ Si a **T+3:00** A5 acierta menos de 4/5 en el escenario ①, avisa a WS-0: se presenta con Demo.
 
 **Bitácora WS-5**
-- _(vacía)_
+- 2026-09-17 18:03 — **WS-5 COMPLETO (A1–A5) en `main`** (`95d59f4`). 67 tests en verde. **El agente ya funciona de punta a punta**: `POST /api/chat` → consulta el bus → elige impresora y preset → lanza el job → el lab corre su línea de tiempo.
+- 2026-09-17 18:03 — **A5, contra Claude Haiku real, 5 repeticiones cada uno: 20/20 (100%)** — ① lab libre + `base-dron.stl` + "4 motores, 250 mm" → **P1/estructural 5/5** · ② P1 ocupada → **P2 5/5** · ③ ambas ocupadas → **no llama `send_to_printer` 5/5** · ④ sin archivo → **lo pide 5/5**. Se corren con `cd backend && RUN_LLM_TESTS=1 uv run pytest tests/test_agent_llm.py -q -s` (fuera de la suite por defecto: cuestan llamadas, DT-5-03). **No hace falta el plan B por el agente** (umbral del plan: ≥4/5 en ①).
+- 2026-09-17 18:03 — **Hallazgo que costó la mitad de A5:** con la plantilla `Listo. {archivo} va a {P}…` escrita en el *system prompt*, Haiku la rellenaba **sin llamar `send_to_printer`** (① 3/5, ② 0/5). Se quitó la plantilla y se le dijo explícitamente que *escribir texto no imprime nada*: subió a 20/20. La frase que lee el usuario la construye el servidor desde el `Job` real (`operator.confirmacion`), así que el modelo ya no tiene motivo para inventarla. La guardia `finalize_reply` atrapó el 100% de las alucinaciones mientras duró el problema.
+- 2026-09-17 18:03 — **Verificado en vivo** (uvicorn + WebSocket, tiempos reales): orden 1 → `Recibido:` → `job_started` → `Listo. base-dron.stl va a P1, preset estructural.` → `Imprimiendo en P1…`; orden 2 inmediata → **P2**, `En cola`, y arranca sola al terminar la primera (D-10). Cajones 1 y 2 ocupados, brazo a reposo. **Paso 4 del guion del demo (§9) funcionando.**
+- 2026-09-17 18:03 — **Nota para WS-1 (Daniela):** `POST /api/chat` responde `{ok, reply}`, pero **no pintes `reply`**: las dos líneas (`Recibido:` y la del operador) ya salen por `bus.onChat` (D-14). La confirmación se publica en cuanto el bus acepta, así que aparece **antes** que `Imprimiendo en P…`, igual que con Demo. `429` = ya hay otra orden en curso; `ok:false` = operador caído, sugiere Demo.
+- 2026-09-17 17:48 — **SOLICITUD → WS-0:** el agente pasa de Ollama/qwen3 a **Anthropic Haiku vía Strands** (`strands-agents[anthropic]`, `AnthropicModel`, default `claude-haiku-4-5`). Hay que actualizar **D-06**, **§4.2** y **§5.8**: sustituir `OLLAMA_BASE_URL`/`OLLAMA_MODEL` por `ANTHROPIC_API_KEY` y `ANTHROPIC_MODEL` en `.env.example`, el compose y el deploy. Ventaja para hoy: el VPS ya no depende de la Mac ni de Tailscale (mitiga **DT-0-04**, **R2** y **R3**). El plan B sigue siendo el botón **Demo**.
+- 2026-09-17 17:48 — **SOLICITUD → WS-0 (cuando se descongele §5.3):** `/api/agent/health` conserva la llave `ollama` (contrato congelado) pero ahora significa "LLM alcanzable"; agrego el campo aditivo `provider: 'anthropic'`. Propongo renombrarla a `llm` en la integración.
+- 2026-09-17 17:48 — Dependencia agregada a `backend/pyproject.toml` (archivo común): `strands-agents[anthropic,ollama]`. No cambia nada de lo que ya usaban los demás.
+- 2026-09-17 17:48 — **A0 hecho contra la doc y el paquete instalado (strands-agents 1.56.0):** ① `AnthropicModel` vive en `strands.models.anthropic`, se configura con `client_args={'api_key': …}` + `model_id`/`max_tokens`/`params={'temperature': 0}`; ② el tope de iteraciones es `agent.invoke_async(..., limits={'turns': N})`; ③ **las tools tienen que ser `async def`**: Strands corre las tools síncronas en `asyncio.to_thread` (`strands/tools/decorator.py:654`) y ahí `bus.submit_job` rompería a WS-4 (su `timeline` hace `asyncio.create_task` y el hub de `/ws` usa `asyncio.Queue`, que no es thread-safe). Con `async def` corren en el loop principal.
 
 ---
 

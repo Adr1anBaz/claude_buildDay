@@ -8,7 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
     "itsdangerous>=2.2",
-    "anthropic>=0.70",
+    "strands-agents[anthropic,ollama]>=0.1",
 ]
 
 [dependency-groups]
@@ -22,6 +22,10 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    # WS-5: guion de aceptación contra el modelo real. Se corre a mano con RUN_LLM_TESTS=1.
+    "llm: llama a la API de Anthropic (cuesta y necesita red)",
+]
 
 [tool.uv]
 package = false

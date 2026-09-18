@@ -1,86 +1,109 @@
-"""WS-5 · Adrián — Operador (agente). Tareas A3-A4 en plan.md §7.
+"""WS-5 · Adrián — Rutas del operador (A3 y A4, plan.md §5.3).
 
-`POST /api/chat` corre el agente de operator.py contra el bus real (de WS-4,
-`app/bus/service.py`, escrito en paralelo — se importa de forma perezosa y
-defensiva) y `GET /api/agent/health` reporta si hay API key configurada.
+Reemplaza el stub de WS-0 (DT-0-08). Las rutas de §5.3 son contrato congelado.
+
+Todo lo que el usuario ve del lab sale del bus (D-14): esta ruta publica `Recibido:` y la
+respuesta del operador con `bus.say(...)`, y el cuerpo del POST solo sirve para que el
+dashboard sepa si desbloquear el input. Una orden a la vez (D-15): la segunda recibe 429.
 """
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+import logging
 
 from fastapi import APIRouter, HTTPException
 
+from ..bus.service import bus
 from ..config import settings
 from ..contracts import ChatRequest, ChatResponse
-from . import operator, tools
+from . import operator
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Candado de "una orden a la vez" (D-15/§5.3): una segunda orden mientras se
-# atiende otra responde 429 en vez de esperar.
 _lock = asyncio.Lock()
+"""Candado de 'una orden a la vez'. Vive en memoria y en un solo worker, igual que el bus.
 
-MSG_NO_DISPONIBLE = "Operador no disponible. Usa el botón Demo."
-MSG_GUARDIA = "No se pudo confirmar el envío a la impresora. Usa el botón Demo."
+TODO(DT-5-05): con más de un worker deja de proteger; se paga junto con DT-0-01.
+"""
 
+_llm_ok = False
+"""Última verificación conocida del modelo. La fija el warm-up y cada orden que corre bien."""
 
-def _get_bus() -> Any:
-    """Importa el bus real de WS-4 de forma perezosa y defensiva.
-
-    `app/bus/service.py` lo escribe otro agente en paralelo; si todavía no
-    existe (o falla al importar) el chat responde "no disponible" en vez de
-    tronar con un ImportError.
-    """
-    try:
-        from ..bus.service import bus as real_bus  # type: ignore[import-not-found]
-    except Exception:  # noqa: BLE001 - service.py puede no existir todavía
-        return None
-    return real_bus
+SIN_OPERADOR = "Operador no disponible. Usa Demo."
 
 
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest) -> ChatResponse:
-    # Sin API key: el operador está apagado a propósito (plan.md D-06/settings
-    # .agent_enabled). No truena, responde ok=false con el mensaje del botón Demo.
-    if not settings.agent_enabled:
-        return ChatResponse(ok=False, reply=MSG_NO_DISPONIBLE)
+    global _llm_ok
 
-    # Candado de una orden a la vez. No hay ningún `await` entre esta lectura
-    # y `async with _lock` más abajo, así que no hay condición de carrera.
     if _lock.locked():
-        raise HTTPException(status_code=429, detail="Ya se está atendiendo otra orden.")
+        # 429: el operador atiende una orden a la vez (D-15). El lab sigue funcionando.
+        raise HTTPException(status_code=429, detail="El operador está atendiendo otra orden.")
 
     async with _lock:
-        bus = _get_bus()
-        if bus is None:
-            return ChatResponse(ok=False, reply=MSG_NO_DISPONIBLE)
-
-        tools.set_bus(bus)
-
-        archivo = body.file or "(sin archivo)"
-        bus.say("lab", f"Recibido: {archivo}.")
+        recibido = f"Recibido: {body.file}." if body.file else "Recibido: orden sin archivo."
+        bus.say("lab", recibido)
 
         try:
-            resultado = await asyncio.wait_for(
-                operator.run_operator(body.text, body.file),
-                timeout=settings.agent_timeout_s,
+            result = await operator.run_order(
+                body.text,
+                body.file,
+                bus,
+                timeout_s=settings.agent_timeout_s,
+                # La confirmación se publica en cuanto el bus acepta, no cuando el modelo
+                # termina de hablar: así el chat respeta el orden de §5.5 y se ve igual
+                # que con el botón Demo (D-14), sin los segundos de más del LLM.
+                on_launch=lambda job: bus.say("operador", operator.confirmacion(job)),
             )
-        except Exception:  # noqa: BLE001 - timeout, error de API, refusal, etc.
-            bus.say("operador", MSG_NO_DISPONIBLE)
-            return ChatResponse(ok=False, reply=MSG_NO_DISPONIBLE)
+        except asyncio.TimeoutError:
+            log.warning("El operador excedió AGENT_TIMEOUT_S=%s", settings.agent_timeout_s)
+            _llm_ok = False
+            bus.say("lab", SIN_OPERADOR)
+            return ChatResponse(ok=False, reply=SIN_OPERADOR)
+        except Exception as exc:  # falta de API key, red caída, error del proveedor
+            log.exception("El operador falló: %s", exc)
+            _llm_ok = False
+            bus.say("lab", SIN_OPERADOR)
+            return ChatResponse(ok=False, reply=SIN_OPERADOR)
 
-        reply = resultado.reply
-
-        # Guardia anti-alucinación (obligatoria): si el modelo dice "Listo" pero
-        # en este turno ningún send_to_printer devolvió OK, no le creemos.
-        if "listo" in reply.lower() and not resultado.printed_ok:
-            reply = MSG_GUARDIA
-
-        bus.say("operador", reply)
-        return ChatResponse(ok=True, reply=reply)
+        _llm_ok = True
+        if not result.launched:
+            # Si se lanzó, la línea ya salió por `on_launch`; publicarla otra vez la duplicaría.
+            bus.say("operador", result.reply)
+        return ChatResponse(ok=True, reply=result.reply)
 
 
 @router.get("/api/agent/health")
 async def agent_health() -> dict[str, object]:
-    return {"anthropic": settings.agent_enabled, "model": settings.anthropic_model}
+    # `ollama` es la llave congelada de §5.3; hoy significa "el LLM responde".
+    # TODO(DT-5-01): renombrarla a `llm` cuando WS-0 descongele el contrato.
+    return {"ollama": _llm_ok, "model": operator.model_id(), "provider": "anthropic"}
+
+
+# ── Warm-up (A4) ──────────────────────────────────────────────────────────────
+async def _warmup() -> None:
+    """Confirma al arrancar que la API key y el modelo responden, sin bloquear el arranque.
+
+    Con Anthropic no hay modelo que cargar, así que esto es una verificación de
+    credencial/red: la primera orden del demo no debe ser la que descubra que algo falta.
+    """
+    global _llm_ok
+    if not operator.api_key():
+        log.warning("Sin ANTHROPIC_API_KEY: el operador queda apagado, el demo usa el botón Demo.")
+        _llm_ok = False
+        return
+    try:
+        await asyncio.wait_for(operator.ping(), timeout=20)
+        _llm_ok = True
+        log.info("Operador listo con %s", operator.model_id())
+    except Exception as exc:
+        _llm_ok = False
+        log.warning("Warm-up del operador falló (%s). El plan B es el botón Demo.", exc)
+
+
+@router.on_event("startup")  # TODO(DT-5-02): API vieja de FastAPI; main.py es de WS-0.
+async def _on_startup() -> None:
+    # En segundo plano: si Anthropic tarda, el servidor arranca igual.
+    asyncio.create_task(_warmup())

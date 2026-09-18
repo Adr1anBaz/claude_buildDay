@@ -1,213 +1,232 @@
-"""WS-5 · Adrián — Operador (agente). Tarea A2: el agente en sí.
+"""WS-5 · Adrián — El operador: Strands + Claude Haiku (A2, plan.md §7).
 
-Cambio de arquitectura respecto a plan.md §4.2/§4.3 (que menciona Strands +
-Ollama + qwen3): eso quedó desactualizado. El operador usa ahora la API de
-Anthropic directamente con el SDK oficial `anthropic` (AsyncAnthropic) y el
-modelo configurado en `settings.anthropic_model` (por defecto claude-opus-5).
+Modelo: **Anthropic Haiku** vía `strands-agents[anthropic]` (ver Bitácora WS-5 del plan;
+sustituye a Ollama/qwen3 de D-06, con SOLICITUD → WS-0 para actualizar §4.2 y §5.8).
 
-Bucle de herramientas: manual (no el tool runner del SDK, que es beta) para
-tener control total sobre qué contó como éxito real — necesario para la
-guardia anti-alucinación de `routes.py` (A3), que necesita saber si, EN ESE
-TURNO, alguna llamada a `send_to_printer` devolvió "OK".
+Dos ideas sostienen la confiabilidad (R1 — que el modelo no alucine un "Listo"):
 
-Sin memoria entre órdenes (D-15): cada llamada a `run_operator` arma una
-conversación nueva desde cero.
+- **Un agente nuevo por orden** (D-15): sin memoria entre mensajes, sin estado que arrastrar.
+- **La frase final no la redacta el modelo.** Si el bus aceptó el trabajo, la respuesta se
+  construye desde el `Job` real (`finalize_reply`). Si no aceptó nada, se prohíbe cualquier
+  afirmación de éxito. El modelo decide impresora y preset; el texto lo decide el resultado.
 """
 from __future__ import annotations
 
+import asyncio
+import os
+import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
-from anthropic import AsyncAnthropic
+from strands import Agent
+from strands.models.anthropic import AnthropicModel
 
-from ..config import settings
-from . import tools
+from ..contracts import Job
+from .tools import Turn, build_tools
 
-# Tope de vueltas del bucle de herramientas: get_lab_status + send_to_printer
-# (+ un reintento con la otra impresora) caben de sobra en esto; evita que un
-# modelo errático se quede llamando tools indefinidamente.
-MAX_ITERATIONS = 6
+# Se lee del entorno en cada llamada (no como constante de módulo) porque `config.py` es de
+# WS-0 y no lo toco, y porque así los tests pueden cambiarlo con monkeypatch.
+# TODO(DT-5-04): mover ANTHROPIC_API_KEY y ANTHROPIC_MODEL a config.Settings cuando WS-0 integre.
+DEFAULT_MODEL_ID = "claude-haiku-4-5"
+
+MAX_TURNS = 4
+"""Tope de iteraciones del loop: status → send → (reintento en la otra impresora) → respuesta."""
+
+MAX_TOKENS = 300
 
 SYSTEM_PROMPT = """\
-Eres el operador de un laboratorio de impresión 3D con dos impresoras (P1 y P2). \
-Recibes una orden de un usuario (un texto y, opcionalmente, el nombre de un archivo \
-.stl) y debes decidir qué impresora usar, qué preset aplicar, y lanzar el trabajo \
-con tus herramientas. No eres un chatbot: eres un operador que solo actúa sobre el \
-estado real del laboratorio.
+Eres el operador de un laboratorio de impresión 3D con dos impresoras (P1 y P2) y cuatro cajones.
+Recibes órdenes cortas de una persona y las ejecutas. No eres un asistente de conversación.
 
-Reglas estrictas, en este orden:
+Procedimiento, en este orden y sin saltarte pasos:
+1. Llama SIEMPRE `get_lab_status` primero. Nunca supongas el estado del lab.
+2. Si el usuario no adjuntó archivo, NO llames `send_to_printer`: pídele que adjunte el .stl.
+3. Elige una impresora que aparezca como 'Libre' en el estado. Si las dos están Libres, usa P1.
+4. Elige el preset según lo que pide el usuario:
+   - `estructural`: si menciona carga, peso, motores, soportes, resistencia, drones o piezas funcionales.
+   - `fino`: si menciona detalle, acabado, estética, precisión o piezas pequeñas.
+   - `normal`: en cualquier otro caso.
+5. Llama `send_to_printer` con la impresora, el preset y el nombre del archivo.
+6. Si te responde 'RECHAZADO: ... está ocupada', intenta UNA vez con la otra impresora si está Libre.
+7. Si NINGUNA impresora está Libre, NO llames `send_to_printer`: dile al usuario que espere a que una se libere.
+8. Si te responde 'RECHAZADO: sin cajón', no reintentes: dile que reinicie el laboratorio.
 
-1. SIEMPRE llama primero a `get_lab_status` para conocer el estado real antes de \
-decidir cualquier cosa. Nunca asumas que una impresora, cajón o recurso está libre \
-sin haberlo comprobado ahí.
-2. Si el usuario no indicó un archivo, pídeselo en tu respuesta y NO llames a \
-`send_to_printer`.
-3. Elige una impresora que el estado real diga que está "Libre".
-4. Elige el preset según lo que describe el usuario:
-   - "estructural" si menciona carga, motores, soportes o resistencia.
-   - "fino" si menciona detalle, acabado o estética.
-   - "normal" en cualquier otro caso.
-5. Tú NUNCA eliges el cajón: el bus reserva el primer cajón libre automáticamente \
-al llamar `send_to_printer`.
-6. Llama a `send_to_printer` con la impresora, preset y archivo elegidos.
-   - Si la herramienta responde "RECHAZADO" porque esa impresora está ocupada, \
-intenta UNA vez con la OTRA impresora.
-   - Si AMBAS impresoras están ocupadas (o la segunda también es rechazada por \
-ocupada), NO vuelvas a llamar a `send_to_printer`: responde que hay que esperar a \
-que una impresora quede libre.
-   - Si te rechaza por falta de cajón, no reintentes: dilo en tu respuesta.
-7. Responde SIEMPRE en una sola frase, en español.
-   - Si `send_to_printer` respondió "OK" en este mismo turno, usa EXACTAMENTE este \
-formato: "Listo. {archivo} va a {impresora}, preset {preset}."
-   - Nunca digas "Listo" si `send_to_printer` no devolvió "OK" en este turno.
-8. Nunca inventes que una impresora, cajón u otro recurso está libre o disponible: \
-confía únicamente en lo que reportan tus herramientas.
+Reglas de la respuesta final:
+- Escribir texto NO imprime nada. Lo único que pone a imprimir es llamar `send_to_printer`.
+  Si hay archivo y alguna impresora está Libre, DEBES llamarla antes de responder.
+- Cuando `send_to_printer` te responda 'OK: ...', responde exactamente: Enviado.
+- Si no llamaste `send_to_printer`, o te respondió 'RECHAZADO', explica en UNA frase qué ocurre:
+  que espere a que se libere una impresora, que reinicie el laboratorio, o que adjunte el archivo.
+- Una sola frase, en español, sin markdown, sin listas y sin emojis.
+- Nunca digas que algo se envió, se lanzó o está imprimiendo si no recibiste 'OK'.
+- Nunca digas que una impresora está libre si el estado no lo dice.
+- Nunca menciones el cajón: lo asigna el laboratorio, no tú.
+
+La confirmación que lee el usuario la redacta el laboratorio a partir del trabajo real,
+así que no inventes ni adornes: tu trabajo es decidir impresora y preset, y llamar la herramienta.
 """
-
-TOOL_DEFINITIONS: list[dict[str, Any]] = [
-    {
-        "name": "get_lab_status",
-        "description": (
-            "Devuelve el estado real del laboratorio: impresoras P1/P2, brazo, "
-            "los 4 cajones y el job activo. Sin argumentos. Llámala siempre primero."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
-    },
-    {
-        "name": "send_to_printer",
-        "description": (
-            "Envía un archivo a imprimir en una impresora con un preset. El bus "
-            "reserva el cajón automáticamente (el primero libre); esta tool nunca "
-            "elige cajón."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "impresora": {
-                    "type": "string",
-                    "enum": ["P1", "P2"],
-                    "description": "Impresora a usar.",
-                },
-                "preset": {
-                    "type": "string",
-                    "enum": ["fino", "normal", "estructural"],
-                    "description": "Preset de impresión según lo que pida el usuario.",
-                },
-                "archivo": {
-                    "type": "string",
-                    "description": "Nombre del archivo a imprimir.",
-                },
-            },
-            "required": ["impresora", "preset", "archivo"],
-            "additionalProperties": False,
-        },
-    },
-]
-
-_TOOL_FUNCTIONS = {
-    "get_lab_status": lambda **kwargs: tools.get_lab_status(),
-    "send_to_printer": lambda **kwargs: tools.send_to_printer(**kwargs),
-}
 
 
 @dataclass
-class OperatorResult:
-    """Resultado de una corrida del agente."""
+class OrderResult:
+    """Resultado de procesar una orden."""
 
     reply: str
-    # True si, EN ESTE TURNO, alguna llamada a send_to_printer devolvió "OK".
-    # routes.py (A3) usa esto para la guardia anti-alucinación.
-    printed_ok: bool
+    """La frase que se le muestra al usuario (ya pasada por la guardia)."""
+
+    turn: Turn
+    """Lo que realmente ocurrió: tools llamadas, job aceptado, rechazos."""
+
+    @property
+    def launched(self) -> bool:
+        return self.turn.sent is not None
 
 
-class OperatorError(RuntimeError):
-    """Error al correr el agente (API caída, rechazo del modelo, etc.)."""
+# ── Configuración del modelo ──────────────────────────────────────────────────
+def model_id() -> str:
+    return os.environ.get("ANTHROPIC_MODEL") or DEFAULT_MODEL_ID
 
 
-def _build_user_message(text: str, file: str | None) -> str:
-    if file:
-        return f"Archivo adjunto: {file}\nOrden del usuario: {text}"
-    return "Archivo adjunto: (ninguno)\nOrden del usuario: " + text
+def api_key() -> str:
+    return os.environ.get("ANTHROPIC_API_KEY", "")
 
 
-def _run_tool(name: str, tool_input: dict[str, Any]) -> str:
-    func = _TOOL_FUNCTIONS.get(name)
-    if func is None:
-        return f"RECHAZADO: herramienta desconocida '{name}'"
-    # tool_input ya viene parseado como dict por el SDK (nunca por texto).
-    return func(**tool_input)
+def make_model() -> AnthropicModel:
+    """Haiku, temperatura 0 y respuesta corta. Falla claro si no hay API key."""
+    key = api_key()
+    if not key:
+        raise RuntimeError("Falta ANTHROPIC_API_KEY: el operador no puede trabajar.")
+    return AnthropicModel(
+        client_args={"api_key": key},
+        model_id=model_id(),
+        max_tokens=MAX_TOKENS,
+        params={"temperature": 0},
+    )
 
 
-async def run_operator(text: str, file: str | None) -> OperatorResult:
-    """Corre el agente para UNA orden (sin memoria de órdenes anteriores).
+_cache: tuple[tuple[str, str], AnthropicModel] | None = None
 
-    Levanta OperatorError si la API de Anthropic falla o el modelo rehúsa
-    responder. El llamador (`routes.py`) es responsable del timeout global.
+
+def get_model() -> AnthropicModel:
+    """El modelo se reutiliza entre órdenes; el `Agent` no (D-15).
+
+    Cada `AnthropicModel` abre su propio cliente HTTP: crear uno por orden dejaba conexiones
+    sin cerrar y hacía pagar el handshake TLS en cada mensaje del demo. La memoria del agente
+    no vive aquí, vive en el `Agent`, así que compartir el modelo no comparte contexto.
     """
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    global _cache
+    llave = (api_key(), model_id())
+    if _cache is None or _cache[0] != llave:
+        _cache = (llave, make_model())
+    return _cache[1]
 
-    messages: list[dict[str, Any]] = [
-        {"role": "user", "content": _build_user_message(text, file)}
-    ]
 
-    printed_ok = False
-    last_text = ""
+async def ping() -> None:
+    """Llamada mínima para confirmar credencial, modelo y red (warm-up de A4). Lanza si falla.
 
-    for _ in range(MAX_ITERATIONS):
-        try:
-            response = await client.messages.create(
-                model=settings.anthropic_model,
-                max_tokens=4096,
-                system=SYSTEM_PROMPT,
-                tools=TOOL_DEFINITIONS,
-                output_config={"effort": settings.agent_effort},
-                messages=messages,
-            )
-        except Exception as exc:  # noqa: BLE001 - cualquier fallo de red/API es fatal aquí
-            raise OperatorError(f"Error llamando a la API de Anthropic: {exc}") from exc
+    Además deja la conexión TLS abierta, que es lo único "caliente" que hay que precalentar
+    cuando el modelo es remoto: la primera orden del demo ya no la paga.
+    """
+    model = get_model()
+    await model.client.messages.create(
+        model=model_id(),
+        max_tokens=1,
+        messages=[{"role": "user", "content": "ok"}],
+    )
 
-        # Comprobar stop_reason ANTES de leer el contenido (posible refusal).
-        if response.stop_reason == "refusal":
-            raise OperatorError("El modelo rehusó responder (stop_reason=refusal).")
 
-        text_blocks = [block.text for block in response.content if block.type == "text"]
-        if text_blocks:
-            last_text = " ".join(t.strip() for t in text_blocks).strip()
+def build_prompt(text: str, file: str | None) -> str:
+    """El archivo va explícito para que el modelo no lo invente ni lo olvide."""
+    adjunto = file if file else "ninguno"
+    return f"Archivo adjunto: {adjunto}\nOrden del usuario: {text.strip()}"
 
-        if response.stop_reason != "tool_use":
-            # end_turn u otro motivo: no hay más tools que ejecutar.
-            break
 
-        # Debe preservarse el turno del asistente completo (incluye bloques
-        # de thinking si los hubo) antes de mandar los tool_result.
-        messages.append({"role": "assistant", "content": response.content})
+# ── Ejecutar una orden ────────────────────────────────────────────────────────
+def confirmacion(job: Job) -> str:
+    """La única frase de éxito del sistema. Sale del job real, nunca del modelo (§5.5)."""
+    return f"Listo. {job.file} va a {job.printer}, preset {job.preset}."
 
-        tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
-        tool_results: list[dict[str, Any]] = []
-        for block in tool_use_blocks:
-            # block.input ya es un dict (JSON parseado por el SDK).
-            result_text = _run_tool(block.name, block.input)
-            if block.name == "send_to_printer" and result_text.startswith("OK:"):
-                printed_ok = True
-            tool_results.append(
-                {
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result_text,
-                }
-            )
 
-        messages.append({"role": "user", "content": tool_results})
-    else:
-        # Se agotaron las iteraciones sin que el modelo terminara su turno.
-        if not last_text:
-            last_text = "No pude completar la orden. Intenta de nuevo o usa Demo."
+async def run_order(
+    text: str,
+    file: str | None,
+    bus: Any,
+    *,
+    timeout_s: float,
+    model: Any | None = None,
+    on_launch: Callable[[Job], None] | None = None,
+) -> OrderResult:
+    """Corre el agente para UNA orden. Propaga TimeoutError o el error del proveedor.
 
-    if not last_text:
-        last_text = "No entendí la orden. Intenta de nuevo o usa Demo."
+    Quien llama (routes.py, A3) decide qué hacer con el fallo: aquí no se traga nada.
+    """
+    turn = Turn()
+    agent = Agent(
+        model=model if model is not None else get_model(),
+        tools=build_tools(bus, turn, on_launch=on_launch),
+        system_prompt=SYSTEM_PROMPT,
+        callback_handler=None,  # sin impresión a stdout: esto corre dentro del servidor
+    )
 
-    return OperatorResult(reply=last_text, printed_ok=printed_ok)
+    result = await asyncio.wait_for(
+        agent.invoke_async(build_prompt(text, file), limits={"turns": MAX_TURNS}),
+        timeout=timeout_s,
+    )
+
+    return OrderResult(reply=finalize_reply(str(result), turn), turn=turn)
+
+
+# ── Guardia anti-alucinación (A3) ─────────────────────────────────────────────
+_EXITO_FALSO = re.compile(
+    "|".join(
+        [
+            r"\blisto\b",
+            # Formas que afirman una acción ya hecha: "lo envié", "fue enviado", "ya lo mandé".
+            r"\benvi(?:é|ó|amos|ado|ada)\b",
+            r"\bmand(?:é|ó|amos|ado|ada)\b",
+            r"\blanc(?:é|ó|amos)\b",
+            r"\blanzad[oa]\b",
+            # Afirmaciones sobre una impresora concreta.
+            r"\bva a (?:p1|p2)\b",
+            r"\bqued[óo] en (?:p1|p2)\b",
+            r"\bimprimiendo en (?:p1|p2)\b",
+            r"\bya (?:est[áa] )?imprimiendo\b",
+        ]
+    ),
+    re.IGNORECASE,
+)
+
+SIN_CAJON = "No hay cajones libres: reinicia el laboratorio para poder imprimir."
+AMBAS_OCUPADAS = "Las dos impresoras están ocupadas. Espera a que una termine y vuelve a enviarlo."
+NO_SE_LANZO = "No pude lanzar el trabajo: ninguna impresora lo aceptó."
+
+
+def finalize_reply(raw: str, turn: Turn) -> str:
+    """Convierte lo que dijo el modelo en lo que el usuario puede creer.
+
+    Si el bus aceptó el trabajo, la frase se construye desde el `Job` real: el modelo ni
+    siquiera participa. Si no aceptó nada, cualquier afirmación de éxito se sustituye.
+    """
+    if turn.sent is not None:
+        return confirmacion(turn.sent)
+
+    if "no_drawer" in turn.rejections:
+        return SIN_CAJON
+
+    texto = _una_linea(raw)
+
+    if not texto:
+        return AMBAS_OCUPADAS if "printer_busy" in turn.rejections else NO_SE_LANZO
+
+    if _EXITO_FALSO.search(texto):
+        # El modelo afirmó algo que no ocurrió: no se le deja pasar (R1).
+        return AMBAS_OCUPADAS if "printer_busy" in turn.rejections else NO_SE_LANZO
+
+    return texto
+
+
+def _una_linea(raw: str) -> str:
+    """Aplana la respuesta a una sola frase limpia: el chat es de una línea por mensaje."""
+    texto = " ".join(raw.split())
+    texto = re.sub(r"[*_`#]", "", texto).strip()
+    return texto[:240].strip()

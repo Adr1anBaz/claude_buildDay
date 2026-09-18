@@ -1,146 +1,140 @@
-"""Bus del laboratorio (WS-4, tarea F1). Única fuente de verdad del estado (plan.md §5.4).
+"""WS-4 · Fernando — Bus del lab (F1). Único dueño del estado (plan.md §5.4).
 
-Nadie más escribe el estado del lab: el agente, el botón Demo y los tests pasan
-siempre por esta instancia (`bus`). `timeline.py` es la única otra pieza que toca
-el estado, y lo hace a través de `mutate()` / `notify_job_started()` /
-`set_active_task()` — una extensión interna del paquete, no parte de la API
-"oficial" de §5.4 (`get_status`, `submit_job`, `say`, `reset`, `subscribe`).
+Instancia única: `from app.bus.service import bus`. Sin tiempos aquí (los pone timeline.py, F2):
+este módulo solo decide transiciones de estado puras y síncronas.
 """
 from __future__ import annotations
 
-import asyncio
-import logging
+import itertools
 import time
-import uuid
 from typing import Callable
 
 from ..contracts import (
     DRAWER_IDS,
+    ArmStatus,
     ChatFrom,
     DrawerId,
     DrawerState,
     Job,
-    LabState,
+    JobPhase,
     Preset,
     PrinterId,
+    PrinterStatus,
     SubmitResult,
     initial_lab_state,
 )
 
-logger = logging.getLogger(__name__)
-
-Event = dict[str, object]
-Subscriber = Callable[[Event], None]
+Event = dict
+Callback = Callable[[Event], None]
 Unsubscribe = Callable[[], None]
 
 
-def _now_ms() -> int:
-    return int(time.time() * 1000)
-
-
-class LabBus:
-    """Estado en memoria del lab (D-04) + notificaciones a suscriptores (el hub de /ws)."""
-
+class Bus:
     def __init__(self) -> None:
-        self._state: LabState = initial_lab_state()
-        self._subscribers: set[Subscriber] = set()
-        self._active_task: asyncio.Task[None] | None = None
+        self._state = initial_lab_state()
+        self._subscribers: list[Callback] = []
+        self._job_ids = itertools.count(1)
 
-    # ── §5.4 API pública ────────────────────────────────────────────────────
-    def get_status(self) -> LabState:
-        """Copia del estado actual; el llamador nunca debe mutar el estado interno."""
-        return self._state.model_copy(deep=True)
+    # ── Lectura ────────────────────────────────────────────────────────────
+    def get_status(self):
+        return self._state
 
+    # ── Suscripción (la usa el hub de /ws en routes.py, y timeline.py) ──────
+    def subscribe(self, callback: Callback) -> Unsubscribe:
+        self._subscribers.append(callback)
+
+        def unsubscribe() -> None:
+            if callback in self._subscribers:
+                self._subscribers.remove(callback)
+
+        return unsubscribe
+
+    def _emit(self, event: Event) -> None:
+        for callback in list(self._subscribers):
+            callback(event)
+
+    def _emit_state(self) -> None:
+        self._state.version += 1
+        self._emit({"type": "state", "state": self._state})
+
+    # ── Chat (D-14: todo lo que aparece en pantalla sale de aquí) ───────────
+    def say(self, from_: ChatFrom, text: str) -> None:
+        self._emit({"type": "chat", "from": from_, "text": text, "ts": time.time()})
+
+    # ── Órdenes ──────────────────────────────────────────────────────────────
     def submit_job(self, printer: PrinterId, preset: Preset, file: str) -> SubmitResult:
-        """Valida, reserva impresora + cajón, y arranca o encola el job (D-10, D-11)."""
         if self._state.printers[printer] != "Libre":
             return SubmitResult(ok=False, reason="printer_busy")
 
-        drawer = self._primer_cajon_libre()
+        drawer = self._first_free_drawer()
         if drawer is None:
             self._state.noDrawer = True
-            self._bump_and_notify()
+            self._emit_state()
             return SubmitResult(ok=False, reason="no_drawer")
 
         job = Job(
-            id=f"job-{uuid.uuid4().hex[:8]}",
+            id=f"job-{next(self._job_ids)}",
             file=file,
             preset=preset,
             printer=printer,
             drawer=drawer,
             phase="en_cola",
         )
-        self._state.printers[printer] = "Imprimiendo"
-        self._state.drawers[drawer] = DrawerState(status="Reservado", file=file)
         self._state.noDrawer = False
+        self._state.printers[printer] = "Imprimiendo"
+        self._state.drawers[drawer] = DrawerState(status="Reservado", file=None)
 
-        se_activa_ya = self._state.job is None
-        if se_activa_ya:
-            self._state.job = job
+        if self._state.job is None:
+            self._activate(job)
         else:
             self._state.queue.append(job)
-
-        self._bump_and_notify()
-
-        if se_activa_ya:
-            # Import diferido: timeline.py importa `bus` de este módulo, así se evita el ciclo.
-            from .timeline import schedule_job
-
-            schedule_job(job)
-        else:
             self.say("lab", f"En cola: {file} espera al brazo.")
+            self._emit_state()
 
         return SubmitResult(ok=True, job=job)
 
-    def say(self, from_: ChatFrom, text: str) -> None:
-        self._notify({"type": "chat", "from": from_, "text": text, "ts": _now_ms()})
-
-    def reset(self) -> None:
-        """Vuelve al estado inicial y cancela cualquier coreografía pendiente."""
-        if self._active_task is not None and not self._active_task.done():
-            self._active_task.cancel()
-        self._active_task = None
-        self._state = initial_lab_state()
-        self._notify({"type": "reset"})
-        self._notify({"type": "state", "state": self._state.model_dump()})
-
-    def subscribe(self, callback: Subscriber) -> Unsubscribe:
-        self._subscribers.add(callback)
-
-        def unsubscribe() -> None:
-            self._subscribers.discard(callback)
-
-        return unsubscribe
-
-    # ── Extensión interna (uso exclusivo de timeline.py) ───────────────────
-    def mutate(self, fn: Callable[[LabState], None]) -> None:
-        """Aplica una mutación al estado y notifica. Solo lo usa la coreografía de timeline.py."""
-        fn(self._state)
-        self._bump_and_notify()
-
-    def notify_job_started(self, job: Job) -> None:
-        self._notify({"type": "job_started", "job": job.model_dump()})
-
-    def set_active_task(self, task: asyncio.Task[None]) -> None:
-        self._active_task = task
-
-    # ── privado ─────────────────────────────────────────────────────────────
-    def _primer_cajon_libre(self) -> DrawerId | None:
-        for d in DRAWER_IDS:
-            if self._state.drawers[d].status == "Libre":
-                return d
+    def _first_free_drawer(self) -> DrawerId | None:
+        for drawer_id in DRAWER_IDS:
+            if self._state.drawers[drawer_id].status == "Libre":
+                return drawer_id
         return None
 
-    def _bump_and_notify(self) -> None:
-        self._state.version += 1
-        self._notify({"type": "state", "state": self._state.model_dump()})
+    def _activate(self, job: Job) -> None:
+        self._state.job = job
+        self._emit_state()
+        self._emit({"type": "job_started", "job": job})
 
-    def _notify(self, event: Event) -> None:
-        for cb in list(self._subscribers):
-            try:
-                cb(event)
-            except Exception:  # un suscriptor roto (p.ej. un socket caído) no tumba el bus
-                logger.exception("Suscriptor del bus falló al recibir %s", event.get("type"))
+    # ── Mutaciones que usa timeline.py (F2) durante la línea de tiempo ──────
+    def set_printer(self, printer: PrinterId, status: PrinterStatus) -> None:
+        self._state.printers[printer] = status
+        self._emit_state()
+
+    def set_arm(self, status: ArmStatus) -> None:
+        self._state.arm = status
+        self._emit_state()
+
+    def set_job_phase(self, phase: JobPhase) -> None:
+        if self._state.job is not None:
+            self._state.job.phase = phase
+        self._emit_state()
+
+    def store_piece(self, drawer: DrawerId, file: str) -> None:
+        self._state.drawers[drawer] = DrawerState(status="Ocupado", file=file)
+        self._emit_state()
+
+    def complete_active_job(self) -> None:
+        """Job activo llegó a los 24s: lo cierra y activa el siguiente de la cola (D-10)."""
+        self._state.job = None
+        if self._state.queue:
+            self._activate(self._state.queue.pop(0))
+        else:
+            self._emit_state()
+
+    # ── Reset (botón Reiniciar, D-11) ───────────────────────────────────────
+    def reset(self) -> None:
+        self._state = initial_lab_state()
+        self._emit({"type": "reset"})
+        self._emit_state()
 
 
-bus = LabBus()
+bus = Bus()
