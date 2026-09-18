@@ -8,8 +8,6 @@ Sube tu `.stl`, describe para qué es la pieza y un agente de IA se encarga del 
 impresora libre, lanza el trabajo, reserva un cajón y coordina un brazo robótico UR3 que retira
 la pieza y la guarda. Todo en una simulación 3D en tiempo real.
 
-<a href="docs/media/lab-operador-3d.mp4"><img src="docs/media/lab-operador.gif" alt="Brazo robótico UR3 retirando una pieza de la impresora en el laboratorio 3D" width="860"/></a>
-
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
@@ -21,6 +19,8 @@ la pieza y la guarda. Todo en una simulación 3D en tiempo real.
 [![Claude](https://img.shields.io/badge/Claude-Anthropic-D97757?logo=anthropic&logoColor=white)](https://www.anthropic.com/claude)
 [![Strands Agents](https://img.shields.io/badge/Strands_Agents-SDK-232F3E)](https://strandsagents.com/)
 [![Cloudflare Tunnel](https://img.shields.io/badge/Cloudflare-Tunnel-F38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+
+<a href="docs/media/lab-operador-3d.mp4"><img src="docs/media/lab-operador.gif" alt="Brazo robótico UR3 retirando una pieza de la impresora en el laboratorio 3D" width="860"/></a>
 
 *Construido en un día durante el Claude Build Day de la Universidad Iberoamericana.*
 
