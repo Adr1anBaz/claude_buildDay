@@ -34,6 +34,9 @@ MAX_TURNS = 4
 
 MAX_TOKENS = 300
 
+NO_TEMPERATURE = ("claude-sonnet-5", "claude-opus-5", "claude-fable-5")
+"""Familias de modelo que rechazan el parametro `temperature` (WS-0, DT-0-10)."""
+
 SYSTEM_PROMPT = """\
 Eres el operador de un laboratorio de impresión 3D con dos impresoras (P1 y P2) y cuatro cajones.
 Recibes órdenes cortas de una persona y las ejecutas. No eres un asistente de conversación.
@@ -96,11 +99,18 @@ def make_model() -> AnthropicModel:
     key = api_key()
     if not key:
         raise RuntimeError("Falta ANTHROPIC_API_KEY: el operador no puede trabajar.")
+    # Los modelos nuevos (Sonnet 5, Opus 5, Fable 5.1) rechazan `temperature` con
+    # 400 invalid_request_error: "`temperature` is deprecated for this model".
+    # Solo se manda donde sigue siendo valido, p.ej. Haiku 4.5.
+    # TODO(DT-0-10): esto lo aplico WS-0 en un archivo de WS-5; Adrian lo adopta o se cierra en P10.
+    params: dict[str, object] = {}
+    if not model_id().startswith(NO_TEMPERATURE):
+        params["temperature"] = 0
     return AnthropicModel(
         client_args={"api_key": key},
         model_id=model_id(),
         max_tokens=MAX_TOKENS,
-        params={"temperature": 0},
+        params=params,
     )
 
 
