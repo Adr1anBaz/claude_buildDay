@@ -95,6 +95,11 @@ grep -rnE 'TODO|FIXME|HACK' frontend/src backend/app | grep -v 'DT-'   # TODOs h
   - **Por qué se dejó:** plan.md 5.2 dice 'ts: number' sin unidad: el bus de WS-4 manda segundos (time.time()) y el mock de WS-0 milisegundos (Date.now()), asi que el chat del dashboard pintaba horas de enero de 1970 y todas las lineas de un job salian con la misma hora. Se normaliza en el cliente para no tocar archivos de WS-4 ni de WS-1 a mitad de la jornada
   - **Riesgo:** La heuristica (ts < 1e12 = segundos) es correcta hasta el ano 2286, pero esconde la divergencia: si manana alguien consume ts sin pasar por bus.ts vuelve el bug
   - **Cómo se paga:** Fijar en 5.2 que ts es epoch en milisegundos y que el bus mande time.time()*1000; despues quitar normalizarTs
+- **DT-0-12** · 🟢 Baja · ⬜ Abierta — main.ts sondea motion.isBusy cada 150 ms para no perder el job en cola
+  - **Dónde:** frontend/src/main.ts (lanzarPendientes)
+  - **Por qué se dejó:** Con D-10 el servidor activa el siguiente job en t=24 s exactos y la coreografia local va unos ms detras, asi que motion.imprimir devolvia false y la segunda pieza no se animaba nunca (reproducido en vivo: '[main] coreografia ignorada'). El contrato Motion (5.6) no avisa cuando termina, asi que se reintenta hasta que acepte
+  - **Riesgo:** Si una coreografia se cuelga, los jobs se quedan esperando en el navegador (el servidor sigue bien); un timer vivo mientras haya pendientes
+  - **Cómo se paga:** Agregar onIdle(cb) a Motion en 5.6 cuando WS-3 entregue, y cambiar el sondeo por esa suscripcion
 
 ---
 
