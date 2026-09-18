@@ -476,18 +476,18 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 ---
 
 ### WS-5 · Operador (agente) — Adrián
-> **Estado:** ⬜ No iniciado
-> **Rama:** `ws/5-agente` · **Agente activo:** —
-> **Trabajando ahora en:** —
-> **Última actualización:** —
+> **Estado:** 🟦 En progreso
+> **Rama:** `ws/5-agente` · **Agente activo:** Claude de Adrián
+> **Trabajando ahora en:** A1 tools · A2 operator (en paralelo)
+> **Última actualización:** 2026-09-17 17:48
 
 **Objetivo:** el agente que recibe el chat, mira el lab, decide **impresora + preset + frase**, y lanza la orden con sus 2 tools.
 **Carpetas:** `backend/app/agent/`, `backend/tests/test_agent_*.py`. **Depende de:** M0; de **M1** para usar el bus real (antes, un `FakeBus` en tus tests con la firma de §5.4).
 
 **Mientras esperas M0 (A0):** en una carpeta temporal fuera del repo, verifica que tu Ollama responde y que un "hola mundo" de Strands con **una tool** funciona con `qwen3:8b` (si no entra, `qwen3:4b`). Revisa en la doc actual de Strands el import de `OllamaModel` y cómo apagar el *thinking* de qwen3 (parámetro `think:false` de Ollama, o `/no_think` en el prompt). Anota lo que funcionó en tu Bitácora.
 
-- ⬜ **A1** — `tools.py`: `get_lab_status()` (resumen compacto del estado) y `send_to_printer(impresora, preset, archivo)` → llama `bus.submit_job`; devuelve texto claro: `OK: … cajón reservado cajon-1` / `RECHAZADO: P1 está ocupada` / `RECHAZADO: sin cajón`. **El agente nunca elige cajón.** Tests con `FakeBus`.
-- ⬜ **A2** — `operator.py`: Strands + `OllamaModel(host=OLLAMA_BASE_URL, model_id=OLLAMA_MODEL)`, temperatura 0, *thinking* apagado, tope de iteraciones de tools, **sin memoria entre órdenes** (D-15). *System prompt* con las reglas: siempre llama `get_lab_status` primero · elige impresora `Libre` · preset por el texto (`fino` = detalle/estética, `estructural` = carga/motores/soportes, `normal` = lo demás) · si la tool rechaza, prueba la otra impresora · si ambas ocupadas **no** llames `send_to_printer` y di que espere · si no hay archivo, pídelo · respuesta de **una frase**: `Listo. {archivo} va a {P}, preset {preset}.` · nunca inventes que algo está libre.
+- 🟦 **A1** — `tools.py`: `get_lab_status()` (resumen compacto del estado) y `send_to_printer(impresora, preset, archivo)` → llama `bus.submit_job`; devuelve texto claro: `OK: … cajón reservado cajon-1` / `RECHAZADO: P1 está ocupada` / `RECHAZADO: sin cajón`. **El agente nunca elige cajón.** Tests con `FakeBus`.
+- 🟦 **A2** — `operator.py`: Strands + `AnthropicModel(model_id=ANTHROPIC_MODEL, max_tokens=300)` con **Haiku** (`claude-haiku-4-5`, ver Bitácora 17:48), temperatura 0, tope de iteraciones de tools (`limits={'turns': 4}`), **sin memoria entre órdenes** (D-15). *System prompt* con las reglas: siempre llama `get_lab_status` primero · elige impresora `Libre` · preset por el texto (`fino` = detalle/estética, `estructural` = carga/motores/soportes, `normal` = lo demás) · si la tool rechaza, prueba la otra impresora · si ambas ocupadas **no** llames `send_to_printer` y di que espere · si no hay archivo, pídelo · respuesta de **una frase**: `Listo. {archivo} va a {P}, preset {preset}.` · nunca inventes que algo está libre.
 - ⬜ **A3** — `routes.py` `POST /api/chat`: candado de una orden a la vez (`429` si ocupado) · `bus.say('lab','Recibido: {file}.')` · correr el agente con `AGENT_TIMEOUT_S` · publicar la respuesta con `bus.say('operador', reply)`. **Guardia anti-alucinación:** si la respuesta dice "Listo" pero en este turno ningún `send_to_printer` devolvió `OK`, se sustituye por un mensaje seguro. Ollama caído o timeout → `ok:false` y línea `Operador no disponible. Usa Demo.`
 - ⬜ **A4** — `GET /api/agent/health` + *warm-up* del modelo al arrancar (que la primera orden del demo no pague la carga).
 - ⬜ **A5** — Guion de aceptación (script o test marcado `ollama`): ① lab libre + `base-dron.stl` + "4 motores, 250 mm" → P1, estructural · ② P1 ocupada → P2 · ③ ambas ocupadas → **no** llama `send_to_printer`, dice que espere · ④ sin archivo → lo pide. Correr cada uno **5 veces** y anotar el porcentaje de acierto en la Bitácora.
@@ -498,7 +498,10 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 ⚠️ Si a **T+3:00** A5 acierta menos de 4/5 en el escenario ①, avisa a WS-0: se presenta con Demo.
 
 **Bitácora WS-5**
-- _(vacía)_
+- 2026-09-17 17:48 — **SOLICITUD → WS-0:** el agente pasa de Ollama/qwen3 a **Anthropic Haiku vía Strands** (`strands-agents[anthropic]`, `AnthropicModel`, default `claude-haiku-4-5`). Hay que actualizar **D-06**, **§4.2** y **§5.8**: sustituir `OLLAMA_BASE_URL`/`OLLAMA_MODEL` por `ANTHROPIC_API_KEY` y `ANTHROPIC_MODEL` en `.env.example`, el compose y el deploy. Ventaja para hoy: el VPS ya no depende de la Mac ni de Tailscale (mitiga **DT-0-04**, **R2** y **R3**). El plan B sigue siendo el botón **Demo**.
+- 2026-09-17 17:48 — **SOLICITUD → WS-0 (cuando se descongele §5.3):** `/api/agent/health` conserva la llave `ollama` (contrato congelado) pero ahora significa "LLM alcanzable"; agrego el campo aditivo `provider: 'anthropic'`. Propongo renombrarla a `llm` en la integración.
+- 2026-09-17 17:48 — Dependencia agregada a `backend/pyproject.toml` (archivo común): `strands-agents[anthropic,ollama]`. No cambia nada de lo que ya usaban los demás.
+- 2026-09-17 17:48 — **A0 hecho contra la doc y el paquete instalado (strands-agents 1.56.0):** ① `AnthropicModel` vive en `strands.models.anthropic`, se configura con `client_args={'api_key': …}` + `model_id`/`max_tokens`/`params={'temperature': 0}`; ② el tope de iteraciones es `agent.invoke_async(..., limits={'turns': N})`; ③ **las tools tienen que ser `async def`**: Strands corre las tools síncronas en `asyncio.to_thread` (`strands/tools/decorator.py:654`) y ahí `bus.submit_job` rompería a WS-4 (su `timeline` hace `asyncio.create_task` y el hub de `/ws` usa `asyncio.Queue`, que no es thread-safe). Con `async def` corren en el loop principal.
 
 ---
 
