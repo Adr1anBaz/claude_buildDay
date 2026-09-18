@@ -336,8 +336,8 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 ### WS-0 · Plataforma — José Luis
 > **Estado:** 🟦 En progreso
 > **Rama:** `ws/0-plataforma` · **Agente activo:** Claude de José Luis
-> **Trabajando ahora en:** Revisión de integración (WS-1, WS-2, WS-5) · luego P6 auth · P7 Docker · P9 deploy
-> **Última actualización:** 2026-09-17 19:00
+> **Trabajando ahora en:** P7 Docker · P9 deploy (P10 integración M2 ya en `main`)
+> **Última actualización:** 2026-09-17 19:32
 
 **Objetivo:** que los otros 5 puedan trabajar en paralelo sin pisarse, y que lo que salga se pueda desplegar. **Fase 0 es bloqueante para todos: es la prioridad absoluta.**
 
@@ -355,13 +355,17 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 - ⬜ **P9** — **Deploy temprano del esqueleto** (no esperar al final): `scripts/deploy.sh` = `rsync` (sin `node_modules`, `.venv`, `.git`) + `ssh … docker compose up -d --build`; elegir `APP_PORT` libre (`ss -ltn`); alta de `lab.imperioon.com → http://localhost:${APP_PORT}` en el túnel existente. *Hecho cuando:* la URL pública pide contraseña y muestra el esqueleto, y **desde dentro del contenedor** se alcanza Ollama (si no: `network_mode: host`, ver R3).
 
 **Fase 2–3**
-- ⬜ **P10** — Integración en el orden de M2, resolver conflictos, quitar stubs, cableado final de `main.ts`.
+- ✅ **P10** — Integración en el orden de M2, resolver conflictos, quitar stubs, cableado final de `main.ts`.
 - ⬜ **P11** — Smoke test local con el guion de §9 → **M3**. Revisar `Deuda_Tecnica.md`: ninguna 🔴 abierta sin mitigación para el demo, y cero `TODO` huérfanos (comandos en ese archivo).
 - ⬜ **P12** — Deploy final + 2 ensayos completos (agente y plan B) en la URL pública → **M4**.
 
 **Subagentes:** P1→P2 en serie; después **P3 ∥ P4** (frontend y backend no comparten archivos). En Fase 1: **P6 ∥ P7 ∥ P8**, luego P9.
 
 **Bitácora WS-0**
+- 2026-09-17 19:32 — **M2 EN `main` (`afc2ae1`): dashboard → agente → lab 3D funcionando de punta a punta.** Mandas una orden desde el dashboard, el operador (Sonnet 5) elige impresora y preset, y en "Ver laboratorio" el UR3 de Elías imprime (0–10 s), saca la pieza y la guarda en el cajón (10–24 s), sincronizado con el servidor. Probado E2E (Chrome headless): cola a P2 (D-10), Reiniciar a mitad de job, lab oculto. 68 tests en verde. **Todos: `git pull` + `cd frontend && npm install`** (nuevas deps: `urdf-loader`, `cannon-es`, React ya estaba).
+- 2026-09-17 19:32 — **AVISO → WS-2 (Elías):** tu mundo ya vive en `frontend/src/lab/mundo.ts` (portado de `mundoElias/index.html` bf91bc1, lógica intacta, three por npm, mallas en `frontend/public/lab/ur3/`). **A partir de ahora trabaja ahí**, no en `mundoElias/`, o tendremos dos versiones. Falta portar tu VR (55677e2). Cambios míos en tu código: `imprimir(origen, destino, opts)` acepta el ritmo del servidor, cada job deja su pieza en el cajón (D-16), no dibuja con la vista oculta, y luces por articulación en el Panel A. Nombres de §5.7 vía alias en `lab/index.ts` (DT-0-14); el archivo va con `@ts-nocheck` (DT-0-13).
+- 2026-09-17 19:32 — **AVISO → WS-3 (Sebas):** `motion/index.ts` ya hace la coreografía con el Pick & Place de Elías al ritmo de §5.5. Si tomas WS-3, parte de ahí (pulir tiempos, efectos), no desde cero.
+- 2026-09-17 19:32 — **AVISO → WS-1 (Daniela) y WS-4 (Fernando):** `SINGLE_ACTIVE_ORDER = false` aplicado (DT-1-01 ✅). Reiniciar ahora cancela la timeline del job activo, con test (DT-4-01 ✅). Nuevo en el lab: panel flotante "Operación en vivo" (chat + fases + movimientos del brazo, minimizable).
 - 2026-09-17 19:00 — **Revisión de integración, probada en local con navegador.** `main` + `ws/1-dashboard` + agente real: camino feliz completo (adjuntar `base-dron.stl` → "4 motores, 250 mm" → P1/estructural en ~4 s → timeline 10/14/20/24 → cajón ocupado). Typecheck, build y 67 tests en verde. En `ws/0-plataforma` (por integrar con `/ws-merge 0`): ① fix del operador para **Sonnet 5** (DT-0-10) · ② `ts` del chat normalizado a ms (DT-0-11) · ③ el job en cola ya no se pierde en la animación (DT-0-12) · ④ `config.py` con `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL` (atiende la SOLICITUD de WS-5 17:48 y DT-5-04).
 - 2026-09-17 19:00 — **AVISO → WS-5 (Adrián):** Sonnet 5 y Opus 5 rechazan `params={"temperature": 0}` con 400 (`temperature is deprecated for this model`) y el agente caía siempre a "Operador no disponible. Usa Demo." aunque `/api/agent/health` diera `true` (el warm-up no manda ese parámetro). Lo arreglé en `operator.py::make_model` desde WS-0 (constante `NO_TEMPERATURE`, deuda DT-0-10). **No edites `make_model` en tu rama** o chocará en M2; si necesitas cambiarlo, parte de la versión de `ws/0-plataforma`.
 - 2026-09-17 19:00 — **DECISIÓN → WS-1 (Daniela):** gana **D-10**. Pon `SINGLE_ACTIVE_ORDER = false` en `dashboard/config.ts` (tu DT-1-01): con `true` el paso 4 del guion es imposible (el chat queda bloqueado y `/api/demo` da 409 con P1 ocupada). Probado en local con `false`: la 2ª orden va a P2 y hace cola. Lo demás del dashboard es compatible con `main`. Las horas del chat salían de 1970 (servidor manda `ts` en segundos): ya lo corrige `net/bus.ts` al integrar, no toques nada.
