@@ -82,3 +82,21 @@ async def test_segundo_job_en_cola_arranca_solo_al_terminar_el_activo(bus: Bus) 
     assert s.job is None
     assert s.drawers["cajon-2"].status == "Ocupado"
     assert s.drawers["cajon-2"].file == "b.stl"
+
+
+async def test_reset_a_medio_job_cancela_la_timeline(bus: Bus) -> None:
+    """DT-4-01: tras Reiniciar, la línea de tiempo vieja no debe tocar el estado nuevo (plan B del demo)."""
+    chats: list[str] = []
+    bus.subscribe(lambda e: chats.append(e["text"]) if e["type"] == "chat" else None)
+
+    assert bus.submit_job("P1", "estructural", "base-dron.stl").ok
+    await asyncio.sleep(12 * SCALE)  # a medio job: el brazo ya va por la pieza
+    bus.reset()
+    chats.clear()
+
+    await _wait_full_timeline()
+
+    s = bus.get_status()
+    assert all(d.status == "Libre" for d in s.drawers.values())
+    assert s.arm == "Reposo" and s.job is None and s.printers["P1"] == "Libre"
+    assert chats == []  # nada de "Guardado en cajón 1." fantasma

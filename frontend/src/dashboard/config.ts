@@ -49,7 +49,7 @@ export const UPLOAD_FIELDS = {
  * una segunda orden a propósito para que salga en P2. El backend SÍ la acepta y la
  * encola. Ponlo en `false` para dejar pasar la segunda orden.
  */
-export const SINGLE_ACTIVE_ORDER = true;
+export const SINGLE_ACTIVE_ORDER = false; // DT-1-01: gana D-10 (decisión WS-0, 19:00)
 
 /** Tope de eventos que se guardan en el visor de logs. */
 export const MAX_LOGS = 400;

@@ -45,10 +45,19 @@ async def _run(job: Job) -> None:
     bus.complete_active_job()
 
 
+_tarea: asyncio.Task[None] | None = None
+"""La línea de tiempo del job activo. Solo hay una a la vez (D-10: el brazo atiende un job)."""
+
+
 def _on_event(event: Event) -> None:
+    global _tarea
     if event["type"] == "job_started":
-        # TODO(DT-4-01): no se trackea/cancela esta tarea si bus.reset() llega a medio job.
-        asyncio.create_task(_run(event["job"]))
+        _tarea = asyncio.create_task(_run(event["job"]))
+    elif event["type"] == "reset" and _tarea is not None:
+        # DT-4-01 (pagada en la integración M2): sin esto, la tarea vieja seguía escribiendo en el
+        # estado nuevo tras Reiniciar (cajón ocupado sin pieza y líneas de chat fantasma).
+        _tarea.cancel()
+        _tarea = None
 
 
 _registered = False

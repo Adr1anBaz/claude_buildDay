@@ -100,6 +100,16 @@ grep -rnE 'TODO|FIXME|HACK' frontend/src backend/app | grep -v 'DT-'   # TODOs h
   - **Por qué se dejó:** Con D-10 el servidor activa el siguiente job en t=24 s exactos y la coreografia local va unos ms detras, asi que motion.imprimir devolvia false y la segunda pieza no se animaba nunca (reproducido en vivo: '[main] coreografia ignorada'). El contrato Motion (5.6) no avisa cuando termina, asi que se reintenta hasta que acepte
   - **Riesgo:** Si una coreografia se cuelga, los jobs se quedan esperando en el navegador (el servidor sigue bien); un timer vivo mientras haya pendientes
   - **Cómo se paga:** Agregar onIdle(cb) a Motion en 5.6 cuando WS-3 entregue, y cambiar el sondeo por esa suscripcion
+- **DT-0-13** · 🟡 Media · ⬜ Abierta — mundo.ts (lab de Elias) va con @ts-nocheck
+  - **Dónde:** frontend/src/lab/mundo.ts
+  - **Por qué se dejó:** Se porto el prototipo de Elias (mundoElias/index.html, 600 lineas de JS) casi tal cual para integrarlo hoy sin reescribir su IK, fisica y colisiones; tiparlo era una reescritura
+  - **Riesgo:** TypeScript no revisa ese archivo: un error de nombres o de tipos en la escena solo se ve en el navegador
+  - **Cómo se paga:** Elias lo tipa por secciones (FK/IK, escena, fisica, UI) quitando el @ts-nocheck; el E2E de integracion lo cubre mientras tanto
+- **DT-0-14** · 🟢 Baja · ⬜ Abierta — Alias de nombres de escena entre 5.7 y el mundo de Elias
+  - **Dónde:** frontend/src/lab/index.ts (ALIAS, getObject)
+  - **Por qué se dejó:** 5.7 congelo P1-cama, cajon-N-ancla y la jerarquia brazo-base/hombro/codo antes de que existiera el UR3 real; el modelo de Elias usa P1-slot, cajon-N-slot y las articulaciones del URDF
+  - **Riesgo:** Quien anime por nombres de 5.7 que no tienen alias (brazo-base, brazo-hombro, brazo-codo) recibe error de getObject
+  - **Cómo se paga:** Actualizar 5.7 con los nombres reales del mundo de Elias y quitar ALIAS
 
 ---
 

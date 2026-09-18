@@ -1,62 +1,57 @@
-// WS-2 · Elías — Lab 3D. Tareas E1-E4 en plan.md §7.
-// STUB de WS-0: escena vacía con los nombres de §5.7 ausentes a propósito (getObject avisa claro).
-// Reemplázalo, pero CONSERVA la firma y devuelve un LabHandle completo.
-import { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
-import type { Deps, LabHandle, Unsubscribe } from '../contracts';
+// WS-2 · Elías — Lab 3D. Contrato mountLab / LabHandle en plan.md §5.6.
+// La escena es el gemelo digital de Elías (mundo.ts); aquí solo se adapta al contrato de la plataforma.
+import './lab.css';
+import type { Deps, LabHandle } from '../contracts';
+import { crearMundo } from './mundo';
+
+export type Mundo = ReturnType<typeof crearMundo>;
+
+// §5.7 congeló unos nombres antes de que existiera el modelo real del UR3. Estos alias los traducen a los
+// del mundo de Elías para que `getObject` siga cumpliendo el contrato.
+// TODO(DT-0-14): alinear §5.7 con los nombres reales y quitar los alias.
+const ALIAS: Record<string, string> = {
+  'P1-cama': 'P1-slot',
+  'P2-cama': 'P2-slot',
+  'cajon-1-ancla': 'cajon-1-slot',
+  'cajon-2-ancla': 'cajon-2-slot',
+  'cajon-3-ancla': 'cajon-3-slot',
+  'cajon-4-ancla': 'cajon-4-slot',
+  'brazo-pinza': 'gripper',
+  'pinza-izq': 'finger-L',
+  'pinza-der': 'finger-R',
+};
+
+const mundos = new WeakMap<LabHandle, Mundo>();
+
+/** El mundo detrás de un LabHandle, para que motion/ use el Pick & Place de Elías. */
+export function mundoDe(lab: LabHandle): Mundo {
+  const mundo = mundos.get(lab);
+  if (!mundo) throw new Error('[lab] ese LabHandle no lo creó mountLab');
+  return mundo;
+}
 
 export function mountLab(root: HTMLElement, deps: Deps): LabHandle {
-  const scene = new Scene();
-  const camera = new PerspectiveCamera(50, 1, 0.1, 100);
-  camera.position.set(4, 3, 5);
-  camera.lookAt(0, 0, 0);
-
-  const renderer = new WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  root.appendChild(renderer.domElement);
-
-  const toolbar = document.createElement('div');
-  toolbar.style.cssText = 'position:absolute;top:12px;left:12px;right:12px;display:flex;gap:8px';
-  const volver = document.createElement('button');
-  volver.textContent = 'Volver';
-  volver.addEventListener('click', () => deps.showView('dashboard'));
-  toolbar.appendChild(volver);
-  root.appendChild(toolbar);
-
-  const frameCbs = new Set<(dt: number) => void>();
-  let last = performance.now();
-  renderer.setAnimationLoop(() => {
-    const now = performance.now();
-    const dt = (now - last) / 1000;
-    last = now;
-    for (const cb of [...frameCbs]) cb(dt);
-    renderer.render(scene, camera);
+  const mundo: Mundo = crearMundo(root, {
+    onVolver: () => deps.showView('dashboard'),
+    // "Iniciar simulación" del panel de Elías: con servidor lo lanza el bus (D-17); sin servidor, local.
+    onIniciar: (origen: string, destino: string) => {
+      if (deps.bus.connected) void deps.api.demo().catch((err) => console.warn('[lab] demo rechazada', err));
+      else void mundo.imprimir(origen, destino);
+    },
   });
 
-  function resize(): void {
-    const w = root.clientWidth || innerWidth;
-    const h = root.clientHeight || innerHeight;
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-  }
-  resize();
-
-  return {
-    scene,
-    toolbar,
+  const handle: LabHandle = {
+    scene: mundo.scene,
+    toolbar: mundo.toolbar,
     getObject(name: string) {
-      const obj = scene.getObjectByName(name);
-      if (!obj) throw new Error(`[lab] no existe el objeto "${name}" (stub de WS-0: falta la escena de Elías, tarea E1)`);
+      const obj = mundo.scene.getObjectByName(ALIAS[name] ?? name);
+      if (!obj) throw new Error(`[lab] no existe el objeto "${name}" en la escena (plan.md §5.7)`);
       return obj;
     },
-    onFrame(cb): Unsubscribe {
-      frameCbs.add(cb);
-      return () => frameCbs.delete(cb);
-    },
-    resetCamera() {
-      camera.position.set(4, 3, 5);
-      camera.lookAt(0, 0, 0);
-    },
-    resize,
+    onFrame: mundo.onFrame,
+    resetCamera: mundo.resetCamera,
+    resize: mundo.resize,
   };
+  mundos.set(handle, mundo);
+  return handle;
 }

@@ -1,0 +1,46 @@
+/* WS-2 · Elías — estilos del lab, portados de mundoElias/index.html con alcance a #lab-root. */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+#lab-root{--bg:#0a0d12;--panel:#0f1319;--line:#1c222b;--text:#e6eaf0;--dim:#5d6673;--p1:#2b6fd6;--p2:#d6742b;--ok:#3ecf8e;--warn:#e0b341;--err:#e05a4f}
+#lab-root *{box-sizing:border-box;margin:0;padding:0}
+#lab-root{height:100%;background:var(--bg);color:var(--text);font:12px/1.4 "IBM Plex Mono",ui-monospace,Menlo,monospace;overflow:hidden}
+#lab-root canvas{display:block}
+#lab-root .btn{position:absolute;top:14px;padding:8px 12px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;user-select:none}
+#lab-root .btn:hover{border-color:var(--dim)}
+#lab-root .btn:disabled{opacity:.4;cursor:default}
+#lab-root .btn.primary{border-color:var(--ok);color:var(--ok)}
+#lab-root .btn.danger{border-color:var(--err);color:var(--err)}
+#lab-root #volver{left:14px}
+#lab-root #reset{right:14px}
+#lab-root #estado{position:absolute;left:14px;bottom:14px;color:var(--dim);font-size:11px;letter-spacing:.06em}
+#lab-root #estado b{color:var(--text);font-weight:500}
+#lab-root #loading{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--dim);letter-spacing:.1em;font-size:11px}
+#lab-root #panel{position:absolute;right:14px;top:56px;width:310px;max-height:calc(100% - 70px);overflow:auto;background:var(--panel);border:1px solid var(--line);padding:12px 14px}
+#lab-root #panel h2{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:0 0 10px;display:flex;justify-content:space-between}
+#lab-root #panel h2 span{color:var(--text)}
+#lab-root .j{display:grid;grid-template-columns:78px 1fr 62px;gap:8px;align-items:center;margin:6px 0}
+#lab-root .j label{color:var(--dim);font-size:11px;white-space:nowrap}
+#lab-root .j input[type=range]{width:100%;accent-color:var(--text);height:18px}
+#lab-root .j input[type=number],#lab-root select{background:var(--bg);border:1px solid var(--line);color:var(--text);font:inherit;font-size:11px;padding:3px 4px}
+#lab-root .j input[type=number]{width:62px;text-align:right}
+#lab-root hr{border:0;border-top:1px solid var(--line);margin:12px 0}
+#lab-root .tcp{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 10px}
+#lab-root .tcp div{background:var(--bg);border:1px solid var(--line);padding:6px 8px}
+#lab-root .tcp small{display:block;color:var(--dim);font-size:10px;letter-spacing:.06em}
+#lab-root .tcp b{font-weight:500;font-size:12px}
+#lab-root .row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+#lab-root .row .btn{position:static;top:auto;padding:7px 10px}
+#lab-root .chk{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:11px;cursor:pointer}
+#lab-root .chk input{accent-color:var(--text)}
+#lab-root .note{color:var(--dim);font-size:10px;margin-top:8px;line-height:1.5}
+#lab-root .note code{color:var(--text)}
+#lab-root .sel{display:grid;grid-template-columns:78px 1fr;gap:8px;align-items:center;margin:6px 0}
+#lab-root .sel label{color:var(--dim);font-size:11px}
+#lab-root #banner{margin-top:10px;padding:8px 10px;border:1px solid var(--line);background:var(--bg);font-size:11px;letter-spacing:.06em;color:var(--dim)}
+#lab-root #banner.run{border-color:var(--warn);color:var(--warn)}
+#lab-root #banner.ok{border-color:var(--ok);color:var(--ok)}
+#lab-root #banner.err{border-color:var(--err);color:var(--err)}
+#lab-root #colstate{margin-top:8px;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+#lab-root #colstate.ok{color:var(--dim)}
+#lab-root #colstate.err{color:var(--err)}
+#lab-root #lab-toolbar{position:absolute;top:14px;left:14px;display:flex;gap:8px;z-index:2}
+#lab-root #lab-toolbar .btn{position:static}
