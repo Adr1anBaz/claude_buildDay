@@ -10,10 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
+    "react": "~19.2.0",
+    "react-dom": "~19.2.0",
+    "react-router": "^7.18.4",
     "three": "^0.170.0"
   },
   "devDependencies": {
+    "@types/react": "~19.2.0",
+    "@types/react-dom": "~19.2.0",
     "@types/three": "^0.170.0",
+    "@vitejs/plugin-react": "^4.7.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.11"
   }

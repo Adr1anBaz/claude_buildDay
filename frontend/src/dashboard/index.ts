@@ -1,15 +1,23 @@
 // WS-1 · Daniela — Dashboard. Tareas D1-D6 en plan.md §7.
-// STUB de WS-0: existe para que todo compile. Reemplázalo, pero CONSERVA la firma y el hueco #status-bar.
+// Punto de entrada del módulo: conserva la firma de plan.md §5.6 y el hueco #status-bar.
+// React vive SOLO dentro de esta carpeta; el resto del frontend sigue en TS puro (D-03).
+import { createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import type { Deps } from '../contracts';
+import { App } from './App';
 
 export function mountDashboard(root: HTMLElement, deps: Deps): void {
-  root.innerHTML = `
-    <div style="max-width:720px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:16px;min-height:100vh">
-      <button id="ver-lab" style="align-self:flex-start;padding:8px 16px">Ver laboratorio</button>
-      <p style="opacity:.6;margin:0">WS-1 · Daniela: visualizador STL y mensajes van aquí (D1-D6).</p>
-      <div style="flex:1"></div>
-      <!-- Hueco que llena WS-4 Fernando. Debe existir y quedar vacío. -->
-      <div id="status-bar"></div>
-    </div>`;
-  root.querySelector<HTMLButtonElement>('#ver-lab')!.addEventListener('click', () => deps.showView('lab'));
+  root.innerHTML = '';
+
+  const reactHost = document.createElement('div');
+  reactHost.className = 'dashboard-host';
+
+  // IMPORTANTE: #status-bar se crea de forma síncrona, porque main.ts lo busca en
+  // cuanto mountDashboard regresa. React lo reubica después sin recrear el nodo,
+  // así que lo que monte WS-4 dentro sigue vivo.
+  const statusBar = document.createElement('div');
+  statusBar.id = 'status-bar';
+
+  root.append(reactHost, statusBar);
+  createRoot(reactHost).render(createElement(App, { deps, statusBar }));
 }

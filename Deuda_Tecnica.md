@@ -90,7 +90,46 @@ grep -rnE 'TODO|FIXME|HACK' frontend/src backend/app | grep -v 'DT-'   # TODOs h
 
 ## WS-1 · Dashboard — Daniela
 
-- _(sin deuda registrada)_
+- **DT-1-01** · 🔴 Alta · ⬜ Abierta — El candado de una sola orden activa contradice D-10 y rompe el paso 4 del demo
+  - **Dónde:** frontend/src/dashboard/config.ts (SINGLE_ACTIVE_ORDER)
+  - **Por qué se dejó:** El brief de WS-1 (§13.B) pide una sola orden activa por usuario; plan.md D-10 dice que la 2a orden se acepta y hace cola, y el guion del demo (§9 paso 4) manda una segunda orden a proposito para que salga en P2.
+  - **Riesgo:** Con el flag en true el dashboard bloquea el input y el paso 4 del demo no se puede hacer desde el chat (el boton Demo de WS-4 si lo permite).
+  - **Cómo se paga:** Decidir con WS-0 cual regla gana. Si gana D-10, poner SINGLE_ACTIVE_ORDER = false: no hay que tocar nada mas.
+- **DT-1-02** · 🟡 Media · ⬜ Abierta — El envio multipart de §13.A no existe en el backend; por defecto va JSON
+  - **Dónde:** frontend/src/dashboard/services/orderService.ts
+  - **Por qué se dejó:** El brief pide multipart/form-data con el archivo, pero D-13 dice que el STL no se sube y §5.3 congela POST /api/chat con JSON {text, file}.
+  - **Riesgo:** Si el equipo decide subir el archivo de verdad, hay que abrir D-13 y §5.3; hoy el agente solo recibe el nombre del archivo.
+  - **Cómo se paga:** WS-0 define el endpoint de subida; se pone VITE_UPLOAD_URL y el transporte multipart se activa solo.
+- **DT-1-03** · 🟡 Media · ⬜ Abierta — La orden propia se correlaciona por nombre de archivo, no por id
+  - **Dónde:** frontend/src/dashboard/services/labAdapter.ts (findOwnJob)
+  - **Por qué se dejó:** POST /api/chat (§5.3) devuelve {ok, reply} y no el id del job, asi que la unica forma de seguir la orden propia es buscar en el bus un job con el mismo file.
+  - **Riesgo:** Con dos ordenes del mismo archivo el dashboard puede seguir la equivocada y liberar el input antes de tiempo.
+  - **Cómo se paga:** SOLICITUD → WS-0: que /api/chat devuelva job.id y usar ese id en vez del nombre.
+- **DT-1-04** · 🟡 Media · ⬜ Abierta — La orden se libera al guardarse en el cajon, no cuando el usuario recoge la pieza
+  - **Dónde:** frontend/src/dashboard/state/LabProvider.tsx (isStoredAndReady)
+  - **Por qué se dejó:** §13.B pide liberar la orden cuando el sistema confirme que la pieza fue recogida, pero §5.2 no tiene ningun evento de recogida: el ultimo estado que reporta el servidor es cajon Ocupado + job null.
+  - **Riesgo:** Si el equipo agrega una recogida real, el dashboard libera el input antes de lo que deberia.
+  - **Cómo se paga:** Cuando WS-4 emita un evento de pieza recogida, engancharlo en isStoredAndReady.
+- **DT-1-05** · 🟡 Media · ⬜ Abierta — La desconexion se detecta sondeando bus.connected cada segundo
+  - **Dónde:** frontend/src/dashboard/state/LabProvider.tsx
+  - **Por qué se dejó:** BusClient (§5.6) expone la bandera connected pero no avisa cuando cambia, y el contrato esta congelado.
+  - **Riesgo:** Hasta 1 s de retraso en avisar que se cayo la conexion, y un timer corriendo siempre.
+  - **Cómo se paga:** SOLICITUD → WS-0: agregar onConnection(cb) a BusClient y cambiar el sondeo por la suscripcion.
+- **DT-1-06** · 🟢 Baja · ⬜ Abierta — Los logs tecnicos se derivan de los eventos del bus, no de un evento de log
+  - **Dónde:** frontend/src/dashboard/services/labAdapter.ts (diffToLogs)
+  - **Por qué se dejó:** §5.2 no define un evento de log; para no inventar datos, cada linea sale de un cambio real en state/chat/job_started/reset y se sella con la hora de recepcion.
+  - **Riesgo:** Las marcas de tiempo son del navegador, no del servidor, y no hay nivel de severidad real.
+  - **Cómo se paga:** Si WS-4 agrega un evento de log con ts y level del servidor, se consume en diffToLogs sin tocar LogsPanel.
+- **DT-1-07** · 🟢 Baja · ⬜ Abierta — React obliga a dos lineas en archivos de WS-0 y el bundle sube a 1.1 MB
+  - **Dónde:** frontend/tsconfig.json (jsx), frontend/vite.config.ts (plugins), frontend/package.json
+  - **Por qué se dejó:** El brief de WS-1 pide React + React Router + R3F, y D-03 congelo Vite + TS sin framework. React se monto solo dentro de src/dashboard/, pero el JSX necesita jsx: react-jsx y el plugin para HMR.
+  - **Riesgo:** El bundle pasa de 1.1 MB sin code-splitting (three + drei + react juntos) y los demas modulos comparten la config.
+  - **Cómo se paga:** Confirmar con WS-0 el cambio a D-03, y partir el chunk con import() dinamico del visor 3D si el peso molesta en el VPS.
+- **DT-1-08** · 🟢 Baja · ⬜ Abierta — Inter se carga desde Google Fonts
+  - **Dónde:** frontend/src/dashboard/dashboard.css (@import)
+  - **Por qué se dejó:** Era la via mas rapida de tener la tipografia del brief sin tocar el index.html de WS-0.
+  - **Riesgo:** Sin red en la demo la tipografia cae a system-ui (se ve distinto, no se rompe) y agrega una peticion externa.
+  - **Cómo se paga:** Autohospedar Inter en frontend/public/ o aceptar system-ui.
 
 ---
 
