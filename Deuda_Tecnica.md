@@ -85,6 +85,11 @@ grep -rnE 'TODO|FIXME|HACK' frontend/src backend/app | grep -v 'DT-'   # TODOs h
   - **Por qué se dejó:** para que arranque en local sin configurar nada
   - **Riesgo:** si se despliega sin .env, las cookies de sesión son falsificables
   - **Cómo se paga:** generar una en el VPS con openssl rand -hex 32 (ya está en .env.example)
+- **DT-0-10** · 🟡 Media · ⬜ Abierta — El fix de temperature para Sonnet vive en operator.py, archivo de WS-5
+  - **Dónde:** backend/app/agent/operator.py (make_model, constante NO_TEMPERATURE)
+  - **Por qué se dejó:** Sonnet 5 y Opus 5 devuelven 400 invalid_request_error 'temperature is deprecated for this model' y el agente caia siempre al plan B; el arreglo tocaba un archivo de Adrian y se aplico desde WS-0 para no bloquear la prueba con Sonnet
+  - **Riesgo:** Si Adrian edita make_model en ws/5-agente habra conflicto en la integracion M2; y la lista de familias sin temperature es una lista a mano que hay que mantener
+  - **Cómo se paga:** Avisar a Adrian en la Bitacora WS-0: o lo adopta en su rama, o se resuelve en P10 tomando esta version
 
 ---
 
