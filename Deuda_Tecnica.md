@@ -115,7 +115,7 @@ grep -rnE 'TODO|FIXME|HACK' frontend/src backend/app | grep -v 'DT-'   # TODOs h
 
 ## WS-1 · Dashboard — Daniela
 
-- **DT-1-01** · 🔴 Alta · ⬜ Abierta — El candado de una sola orden activa contradice D-10 y rompe el paso 4 del demo
+- **DT-1-01** · 🔴 Alta · ✅ Pagada (4a4e37d) — El candado de una sola orden activa contradice D-10 y rompe el paso 4 del demo
   - **Dónde:** frontend/src/dashboard/config.ts (SINGLE_ACTIVE_ORDER)
   - **Por qué se dejó:** El brief de WS-1 (§13.B) pide una sola orden activa por usuario; plan.md D-10 dice que la 2a orden se acepta y hace cola, y el guion del demo (§9 paso 4) manda una segunda orden a proposito para que salga en P2.
   - **Riesgo:** Con el flag en true el dashboard bloquea el input y el paso 4 del demo no se puede hacer desde el chat (el boton Demo de WS-4 si lo permite).
@@ -172,7 +172,7 @@ grep -rnE 'TODO|FIXME|HACK' frontend/src backend/app | grep -v 'DT-'   # TODOs h
 
 ## WS-4 · Estado y plan B — Fernando
 
-- **DT-4-01** · 🟡 Media · ⬜ Abierta — timeline.py no cancela su tarea asyncio si se resetea a medio job
+- **DT-4-01** · 🟡 Media · ✅ Pagada (4a4e37d) — timeline.py no cancela su tarea asyncio si se resetea a medio job
   - **Dónde:** backend/app/bus/timeline.py::_run
   - **Por qué se dejó:** F1-F5 se priorizó cerrar rápido el camino feliz para M2; cancelar tasks por job es más código
   - **Riesgo:** Reiniciar mientras un job anima puede dejar una tarea vieja escribiendo estado (printer/arm) sobre el lab recién reseteado
