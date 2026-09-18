@@ -9,6 +9,17 @@ type Handlers = {
   reset: Set<() => void>;
 };
 
+/**
+ * §5.2 no fijaba la unidad de `ts`: el servidor lo manda en SEGUNDOS (`time.time()`) y el
+ * mock en MILISEGUNDOS (`Date.now()`), asi que el chat pintaba horas de enero de 1970 y
+ * todas las lineas de un job salian con el mismo minuto. Aqui se normaliza a ms epoch,
+ * que es lo que espera `new Date(ts)` en el navegador.
+ * TODO(DT-0-11): fijar en §5.2 que ts es epoch en ms y quitar esta normalizacion.
+ */
+function normalizarTs(ts: number): number {
+  return ts < 1e12 ? Math.round(ts * 1000) : ts;
+}
+
 function emit<T>(set: Set<(v: T) => void>, value: T): void {
   for (const cb of [...set]) {
     try {
@@ -54,7 +65,7 @@ export function createBusClient(): BusClient {
           emit(h.job, msg.job);
           break;
         case 'chat':
-          emit(h.chat, { from: msg.from, text: msg.text, ts: msg.ts });
+          emit(h.chat, { from: msg.from, text: msg.text, ts: normalizarTs(msg.ts) });
           break;
         case 'reset':
           emit(h.reset, undefined as never);
