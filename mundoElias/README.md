@@ -22,6 +22,16 @@ python3 -m http.server 8080      # o: npx serve .
   Rutas: `ROUTES="P1,cajon-2;P2,cajon-3" node tools/cdp-test.mjs …`. `tools/cdp-view.mjs URL out.png` captura pantalla.
 - `CONTEXT.md` — historia, decisiones, restricciones (alcance UR3 500 mm) y roadmap.
 
+## VR (WebXR)
+
+Botón **ENTER VR** abajo al centro (aparece "VR NOT SUPPORTED" si el navegador no tiene WebXR). El usuario aparece de pie en la
+zona de recolección mirando al banco. Mandos: stick izq = caminar · stick der = girar 45° · gatillo der = Iniciar ciclo ·
+grip der = Stop · gatillo izq = siguiente caja · grip izq = cambiar impresora. Tablero de estado 3D sobre el banco.
+
+- Probar en PC sin casco: extensión "Immersive Web Emulator" (Chrome/Edge).
+- Meta Quest: WebXR exige https o localhost. Con cable: `adb reverse tcp:8080 tcp:8080` y abrir `http://localhost:8080/` en el
+  navegador del Quest. Sin cable: servir por https (p. ej. `npx local-ssl-proxy --source 8443 --target 8080`) o un túnel.
+
 ## Nombres de objetos (scene.getObjectByName)
 
 `P1`, `P2`, `P1-slot`, `P2-slot`, `P1-led`, `P2-led`, `brazo`, `tcp`, `gripper`, `finger-L`, `finger-R`,

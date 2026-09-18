@@ -39,6 +39,7 @@
   .sel label{color:var(--dim);font-size:11px}
   #banner{margin-top:10px;padding:8px 10px;border:1px solid var(--line);background:var(--bg);font-size:11px;letter-spacing:.06em;color:var(--dim)}
   #banner.run{border-color:var(--warn);color:var(--warn)} #banner.ok{border-color:var(--ok);color:var(--ok)} #banner.err{border-color:var(--err);color:var(--err)}
+  #vrbtn{font-family:"IBM Plex Mono",monospace !important;border:1px solid var(--ok) !important;border-radius:0 !important;background:var(--panel) !important;color:var(--ok) !important;opacity:1 !important;letter-spacing:.08em;font-size:11px !important;padding:8px 14px !important;bottom:14px !important}
   #colstate{margin-top:8px;font-size:10px;letter-spacing:.08em;text-transform:uppercase} #colstate.ok{color:var(--dim)} #colstate.err{color:var(--err)}
 </style>
 </head>
@@ -74,7 +75,7 @@
   <div id="colstate" class="ok">sin colisión</div>
   <p class="note">Modelo: ur3.urdf + mallas Collada locales, articulado vía urdf-loader. DH UR3: D1 151.9 · A2 −243.65 · A3 −213.25 · D4 112.35 · D5 85.35 · D6 81.9 mm. Home <code>[0,−90,0,−90,0,0]</code>. Impresoras: Bambu Lab X1C/P1S 389×389×457 mm + AMS.</p>
 </aside>
-<div id="estado"><b>LAB</b> · UR3 (500 mm) · Bambu P1 · P2 · 4 cajas · celda 2×2 m · banco 1.00 m</div>
+<div id="estado"><b>LAB</b> · UR3 (500 mm) · Bambu P1 · P2 · 4 cajas · banco 1.60×1.60 · 1.00 m · WebXR</div>
 
 <script type="importmap">
 { "imports": {
@@ -89,6 +90,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import URDFLoader from 'urdf-loader';
 import * as CANNON from 'cannon-es';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
 /* ============================== 0. Constantes ============================== */
 const TABLE_H = 1.00;
@@ -162,6 +165,7 @@ const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio
 renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05;
 document.body.appendChild(renderer.domElement);
+renderer.xr.enabled=true; renderer.xr.setReferenceSpaceType('local-floor');
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.enablePan=false; controls.enableDamping=true; controls.dampingFactor=0.08;
 controls.minDistance=0.6; controls.maxDistance=8; controls.maxPolarAngle=Math.PI/2-0.03;
@@ -445,7 +449,7 @@ setQ(HOME);
 
 /* ============================== 6. Pick & Place ============================== */
 const banner=document.getElementById('banner');
-function setBanner(t,cls=''){ banner.textContent=t; banner.className=cls; console.log('[ciclo]',t); }
+function setBanner(t,cls=''){ banner.textContent=t; banner.className=cls; console.log('[ciclo]',t); xrBoardUpdate(); }
 let running=false, abort=false, lastMoveError=null;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ease=t=>t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;   // cúbica suave (MoveJ)
@@ -592,6 +596,40 @@ async function imprimir(origenId, destinoId){
 document.getElementById('start').onclick=()=>imprimir(document.getElementById('origen').value,document.getElementById('destino').value);
 document.getElementById('stop').onclick=()=>{ abort=true; lastMoveError=null; };
 
+/* ============================== 6b. VR (WebXR) ==============================
+   Rig del usuario de pie en la zona de recolección mirando al banco. En sesión XR la cámara pasa al rig
+   (three compone la pose del casco con el padre). Mandos: stick izq = caminar, stick der = girar 45°,
+   gatillo der = Iniciar ciclo, grip der = Stop, gatillo izq = siguiente caja, grip izq = cambiar impresora. */
+const vrBtn=VRButton.createButton(renderer); vrBtn.id='vrbtn'; document.body.appendChild(vrBtn);
+const rig=new THREE.Group(); rig.name='xr-rig'; rig.position.set(-0.10,0,0.65); scene.add(rig);   // mira a −Z (banco)
+renderer.xr.addEventListener('sessionstart',()=>{ controls.enabled=false; camera.position.set(0,0,0); camera.rotation.set(0,0,0); rig.add(camera); document.getElementById('panel').style.display='none'; xrBoard.visible=true; xrBoardUpdate(); });
+renderer.xr.addEventListener('sessionend',()=>{ scene.attach(camera); controls.enabled=true; resetCamera(); document.getElementById('panel').style.display=''; xrBoard.visible=false; });
+const ctrlFactory=new XRControllerModelFactory(); const ctrls=[];
+for(const i of [0,1]){ const c=renderer.xr.getController(i); rig.add(c);
+  const ray=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,0,-1)]),new THREE.LineBasicMaterial({color:0x3ecf8e,transparent:true,opacity:0.5})); ray.scale.z=0.6; c.add(ray);
+  const grip=renderer.xr.getControllerGrip(i); grip.add(ctrlFactory.createControllerModel(grip)); rig.add(grip);
+  c.addEventListener('connected',e=>{ c.userData.hand=e.data.handedness; c.userData.gp=e.data.gamepad; });
+  c.addEventListener('disconnected',()=>{ c.userData.hand=null; c.userData.gp=null; });
+  c.addEventListener('selectstart',()=>{ if(c.userData.hand==='left'){ const d=document.getElementById('destino'); d.selectedIndex=(d.selectedIndex+1)%d.options.length; xrBoardUpdate(); } else { document.getElementById('start').click(); } });
+  c.addEventListener('squeezestart',()=>{ if(c.userData.hand==='left'){ const o=document.getElementById('origen'); o.selectedIndex=(o.selectedIndex+1)%o.options.length; xrBoardUpdate(); } else { document.getElementById('stop').click(); } });
+  ctrls.push(c); }
+let snapCooldown=0;
+function xrLocomotion(dt){ if(!renderer.xr.isPresenting) return; snapCooldown=Math.max(0,snapCooldown-dt);
+  const head=renderer.xr.getCamera(); const yaw=Math.atan2(-head.matrixWorld.elements[8],-head.matrixWorld.elements[10]);   // dirección de mirada en XZ
+  for(const c of ctrls){ const gp=c.userData.gp; if(!gp||gp.axes.length<4) continue; const ax=gp.axes[2], ay=gp.axes[3];
+    if(c.userData.hand==='left'){ if(Math.abs(ax)>0.15||Math.abs(ay)>0.15){ const sp=1.0*dt; rig.position.x+=(Math.sin(yaw)*(-ay)+Math.cos(yaw)*ax)*sp; rig.position.z+=(Math.cos(yaw)*(-ay)-Math.sin(yaw)*ax)*sp; } }
+    else { if(Math.abs(ax)>0.7&&snapCooldown===0){ rig.rotation.y-=Math.sign(ax)*Math.PI/4; snapCooldown=0.35; } } } }
+/* Tablero de estado 3D sobre el banco (solo visible en VR) */
+const xrBoard=new THREE.Group(); xrBoard.name='xr-board'; xrBoard.position.set(-0.10,TABLE_H+0.75,BENCH.cz+BENCH.d/2-0.30); xrBoard.visible=false; scene.add(xrBoard);
+xrBoard.add(box(0.90,0.26,0.01,new THREE.MeshStandardMaterial({color:0x0f1319,roughness:0.9}),{shadow:false}));
+let xrBoardText=null;
+function xrBoardUpdate(){ if(!xrBoard.visible&&!renderer.xr.isPresenting) return; if(xrBoardText) xrBoard.remove(xrBoardText);
+  const o=document.getElementById('origen').value, d=document.getElementById('destino').value.replace('cajon-','caja ');
+  const c=document.createElement('canvas'); c.width=1024; c.height=300; const g=c.getContext('2d'); g.fillStyle='#e6eaf0'; g.font='600 64px "IBM Plex Mono", monospace'; g.textAlign='center';
+  g.fillText(banner.textContent,512,110); g.fillStyle='#5d6673'; g.font='500 44px "IBM Plex Mono", monospace'; g.fillText(`${o} → ${d}   ·   gatillo der: iniciar · grip der: stop`,512,200); g.fillText('izq: gatillo = caja · grip = impresora · stick = caminar',512,260);
+  const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; xrBoardText=new THREE.Mesh(new THREE.PlaneGeometry(0.88,0.258),new THREE.MeshBasicMaterial({map:tex,transparent:true})); xrBoardText.position.z=0.006; xrBoard.add(xrBoardText); }
+document.getElementById('origen').onchange=xrBoardUpdate; document.getElementById('destino').onchange=xrBoardUpdate;
+
 /* ============================== 7. Arranque ============================== */
 window.lab={scene,camera,renderer,controls,joints,tcp,gripper,pieza,piezaBody,world,q,setQ,setGripper,forwardKinematics,ikSolve,ikAnalytic,ikFor,imprimir,moveJ,moveL,collisionAt,pathCollision,robotSpheres,obstacles,DH,HOME,ROBOT_POS,BENCH};
 loadMeshes().then(()=>{ document.getElementById('loading').remove(); console.log('[meshes] UR3 cargado');
@@ -606,7 +644,7 @@ loadMeshes().then(()=>{ document.getElementById('loading').remove(); console.log
 }).catch(e=>{ document.getElementById('loading').textContent='ERROR CARGANDO MALLAS — ver consola'; console.error(e); });
 addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
 const clock=new THREE.Clock();
-renderer.setAnimationLoop(()=>{ const dt=clock.getDelta(); physicsStep(dt); if(robot&&!running) collisionUpdate(); controls.update(); renderer.render(scene,camera); });
+renderer.setAnimationLoop(()=>{ const dt=clock.getDelta(); physicsStep(dt); xrLocomotion(dt); if(robot&&!running) collisionUpdate(); if(controls.enabled) controls.update(); renderer.render(scene,camera); });
 </script>
 </body>
 </html>

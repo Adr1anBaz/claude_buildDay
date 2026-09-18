@@ -59,7 +59,7 @@ A_i = Rz(θ)·Tz(d)·Tx(a)·Rx(α); T6_0 = A1…A6. Verificado: q=0 → (-456.9,
 | C | Pick&Place `imprimir(origen,destino)` MoveJ; falta MoveL y grabador de waypoints | ✅ parcial |
 | D | IK numérica DLS hecha; IK analítica 8 soluciones pendiente | ✅ parcial |
 | E | Mallas oficiales UR3 (hecho); falta urdf-loader formal / Bambu CAD real | ✅ parcial |
-| F | VR (`renderer.xr.enabled`, VRButton) | ⏳ |
+| F | VR WebXR: VRButton, rig en zona de recolección, mandos (locomoción, iniciar/stop, selección), tablero 3D | ✅ |
 
 ## Espec pendiente (consola completa)
 Panel B: selector origen (P1/P2), destino (cajón 1-4), Iniciar Simulación, velocidad 0.5/1/2×, parada de emergencia, banner de estado ("Aproximando…", "Sujetando pieza…", "Trasladando…", "Ciclo Terminado"). Baliza verde/azul/gris + texto "LISTA PARA PICK"/"EN ESPERA". Trayectoria TCP con línea. Grabador de waypoints → JSON. IK: θ1, θ5, θ6 cerradas; θ2/θ3/θ4 planar 2R + ley de cosenos; selección por distancia articular ponderada.
