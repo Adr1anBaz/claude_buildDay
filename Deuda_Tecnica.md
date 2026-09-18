@@ -118,4 +118,28 @@ grep -rnE 'TODO|FIXME|HACK' frontend/src backend/app | grep -v 'DT-'   # TODOs h
 
 ## WS-5 · Operador (agente) — Adrián
 
-- _(sin deuda registrada)_
+- **DT-5-01** · 🟡 Media · ⬜ Abierta — /api/agent/health usa la llave congelada 'ollama' para decir si responde Anthropic
+  - **Dónde:** backend/app/agent/routes.py::agent_health
+  - **Por qué se dejó:** El contrato §5.3 está congelado y el agente cambió de Ollama a Anthropic Haiku; renombrar la llave hoy rompería al frontend
+  - **Riesgo:** Quien lea el JSON puede pensar que hay un Ollama detrás; confunde a quien depure el demo
+  - **Cómo se paga:** WS-0 renombra la llave a 'llm' en la integración y el frontend deja de leer 'ollama'; ya se agregó el campo aditivo provider
+- **DT-5-02** · 🟢 Baja · ⬜ Abierta — El warm-up del agente se engancha con router.on_event('startup'), API deprecada de FastAPI
+  - **Dónde:** backend/app/agent/routes.py::_on_startup
+  - **Por qué se dejó:** El lifespan moderno vive en main.py, que es de WS-0 y no puedo editar (§4.3)
+  - **Riesgo:** FastAPI puede quitar on_event en una versión futura y el warm-up dejaría de correr en silencio; el demo pagaría la primera llamada
+  - **Cómo se paga:** WS-0 expone un lifespan en main.py y el router registra ahí su warm-up
+- **DT-5-03** · 🟡 Media · ⬜ Abierta — Los tests del agente contra el modelo real no corren en la suite por defecto
+  - **Dónde:** backend/tests/test_agent_llm.py
+  - **Por qué se dejó:** Cada corrida cuesta llamadas a la API y necesita red; el resto de la suite debe correr offline y rápido en cada /ws-merge
+  - **Riesgo:** Una regresión de prompt (que el modelo deje de llamar la tool) no la detecta pytest: solo se ve corriendo A5 a mano
+  - **Cómo se paga:** Correrlos con RUN_LLM_TESTS=1 antes de cada deploy, y en CI con un presupuesto de llamadas
+- **DT-5-04** · 🟡 Media · ⬜ Abierta — La configuración del agente (ANTHROPIC_API_KEY, ANTHROPIC_MODEL) se lee fuera de config.py
+  - **Dónde:** backend/app/agent/operator.py::model_id y api_key
+  - **Por qué se dejó:** config.py es de WS-0 (§4.3) y el cambio a Anthropic salió después de M0; no quise tocar su archivo a media jornada
+  - **Riesgo:** Las variables del proyecto quedan en dos lugares: nadie encuentra la del agente leyendo config.py, y .env.example no las lista todavía
+  - **Cómo se paga:** WS-0 mueve ambas a Settings en config.py y las agrega a .env.example y al compose (ya pedido en la Bitácora WS-5)
+- **DT-5-05** · 🟢 Baja · ⬜ Abierta — El candado de una orden a la vez es un asyncio.Lock en memoria
+  - **Dónde:** backend/app/agent/routes.py::_lock
+  - **Por qué se dejó:** Es lo que pide D-15 y basta con un worker, igual que el bus (DT-0-01)
+  - **Riesgo:** Con más de un worker o más de una instancia, dos personas podrían lanzar órdenes en paralelo y el 429 dejaría de proteger
+  - **Cómo se paga:** Mover el candado al mismo lugar donde se persista el estado del lab cuando se pague DT-0-01
