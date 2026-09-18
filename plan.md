@@ -336,8 +336,8 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 ### WS-0 · Plataforma — José Luis
 > **Estado:** 🟦 En progreso
 > **Rama:** `ws/0-plataforma` · **Agente activo:** Claude de José Luis
-> **Trabajando ahora en:** P6 auth · P7 Docker · P8 Ollama por Tailscale · P9 deploy temprano
-> **Última actualización:** 2026-09-17 17:12
+> **Trabajando ahora en:** Revisión de integración (WS-1, WS-2, WS-5) · luego P6 auth · P7 Docker · P9 deploy
+> **Última actualización:** 2026-09-17 19:00
 
 **Objetivo:** que los otros 5 puedan trabajar en paralelo sin pisarse, y que lo que salga se pueda desplegar. **Fase 0 es bloqueante para todos: es la prioridad absoluta.**
 
@@ -362,6 +362,10 @@ Ejes: **Y arriba**, unidades ≈ metros, piso en `y=0`. Posiciones sugeridas: `P
 **Subagentes:** P1→P2 en serie; después **P3 ∥ P4** (frontend y backend no comparten archivos). En Fase 1: **P6 ∥ P7 ∥ P8**, luego P9.
 
 **Bitácora WS-0**
+- 2026-09-17 19:00 — **Revisión de integración, probada en local con navegador.** `main` + `ws/1-dashboard` + agente real: camino feliz completo (adjuntar `base-dron.stl` → "4 motores, 250 mm" → P1/estructural en ~4 s → timeline 10/14/20/24 → cajón ocupado). Typecheck, build y 67 tests en verde. En `ws/0-plataforma` (por integrar con `/ws-merge 0`): ① fix del operador para **Sonnet 5** (DT-0-10) · ② `ts` del chat normalizado a ms (DT-0-11) · ③ el job en cola ya no se pierde en la animación (DT-0-12) · ④ `config.py` con `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL` (atiende la SOLICITUD de WS-5 17:48 y DT-5-04).
+- 2026-09-17 19:00 — **AVISO → WS-5 (Adrián):** Sonnet 5 y Opus 5 rechazan `params={"temperature": 0}` con 400 (`temperature is deprecated for this model`) y el agente caía siempre a "Operador no disponible. Usa Demo." aunque `/api/agent/health` diera `true` (el warm-up no manda ese parámetro). Lo arreglé en `operator.py::make_model` desde WS-0 (constante `NO_TEMPERATURE`, deuda DT-0-10). **No edites `make_model` en tu rama** o chocará en M2; si necesitas cambiarlo, parte de la versión de `ws/0-plataforma`.
+- 2026-09-17 19:00 — **DECISIÓN → WS-1 (Daniela):** gana **D-10**. Pon `SINGLE_ACTIVE_ORDER = false` en `dashboard/config.ts` (tu DT-1-01): con `true` el paso 4 del guion es imposible (el chat queda bloqueado y `/api/demo` da 409 con P1 ocupada). Probado en local con `false`: la 2ª orden va a P2 y hace cola. Lo demás del dashboard es compatible con `main`. Las horas del chat salían de 1970 (servidor manda `ts` en segundos): ya lo corrige `net/bus.ts` al integrar, no toques nada.
+- 2026-09-17 19:00 — **SOLICITUD → WS-2 (Elías):** tu mundo 3D funciona (tu `cdp-test.mjs` 3/3 en esta Mac) pero está en la rama `mundoElias` y en `mundoElias/`, fuera de `frontend/src/lab/` (§4.3): `/ws-merge` no lo acepta y `main.ts` no lo puede montar. Para M2: envolverlo en `mountLab(root, deps): LabHandle` dentro de `frontend/src/lab/`, pasar `three`/`urdf-loader`/`cannon-es` a npm (hoy CDN: sin internet no hay lab) y las mallas a `frontend/public/`. Los nombres de §5.7 del brazo y los anclajes (`P1-cama`, `cajon-N-ancla`, `brazo-base…`) no coinciden con los tuyos (`P1-slot`, `cajon-N-slot`, `joint-*`): lo resolvemos contigo y con Sebas antes de tocar código.
 - 2026-09-17 17:12 — **M0 LISTO.** Esqueleto en `main`: frontend (Vite+TS+Three, contratos, mock `?mock=1`) y backend (FastAPI, contratos, auth, routers stub). Verificado con typecheck, build, pytest, servidor real y Chrome. **Los 5 workstreams ya pueden correr `/ws-start N`.** Stubs registrados como DT-0-08: cada dueño reemplaza el suyo conservando la firma.
 - 2026-09-17 17:06 — Arranca Fase 0. Skills y scripts del proyecto ya están en `main`; los demás: `git pull` + `/ws-start N`.
 
