@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UR3 Robot - Three.js Visualizer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      background: #0f141d;
+      color: #e2e8f0;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    /* Control Panel */
+    #ui-panel {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 320px;
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      z-index: 10;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 10px;
+    }
+    .panel-header h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-badge {
+      font-size: 0.72rem;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      background: rgba(234, 179, 8, 0.2);
+      color: #facc15;
+      font-weight: 500;
+    }
+    .status-badge.ready {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+    }
+    .joint-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .joint-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+    .joint-header span.val {
+      color: #f1f5f9;
+      font-variant-numeric: tabular-nums;
+      font-family: monospace;
+    }
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      background: #334155;
+      border-radius: 3px;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+      transition: transform 0.1s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    button {
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #f8fafc;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    button:hover {
+      background: #38bdf8;
+      color: #0f172a;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+    button.active {
+      background: #0ea5e9;
+      color: white;
+    }
+    #loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #0f141d;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      transition: opacity 0.5s ease;
+    }
+    .spinner {
+      width: 46px;
+      height: 46px;
+      border: 4px solid rgba(56, 189, 248, 0.2);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    #info-card {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(17, 24, 39, 0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      max-width: 320px;
+      line-height: 1.4;
+      pointer-events: none;
+    }
+  </style>
+
+  <!-- Import maps polyfill & three / urdf-loader modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+        "urdf-loader": "https://cdn.jsdelivr.net/npm/urdf-loader@0.12.3/+esm"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <div style="font-size: 1.1rem; color: #38bdf8; font-weight: 500;">Cargando modelo UR3...</div>
+    <div style="font-size: 0.82rem; color: #64748b; margin-top: 6px;">Cargando mallas Collada (.dae) y URDF</div>
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <div id="ui-panel">
+    <div class="panel-header">
+      <h2>🤖 Control UR3</h2>
+      <span id="status-badge" class="status-badge">Cargando...</span>
+    </div>
+
+    <div class="joint-group">
+      <div class="joint-header">
+        <span>Base (Pan)</span>
+        <span id="val-q0" class="val">0.00 rad</span>
+      </div>
+      <input type="range" id="q0" min="-3.1416" max="3.1416" step="0.01" value="0">
+    </div>
+
+    <div class="joint-group">
+      <div class="joint-header">
+        <span>Hombro (Lift)</span>
+        <span id="val-q1" class="val">0.00 rad</span>
+      </div>
+      <input type="range" id="q1" min="-3.1416" max="3.1416" step="0.01" value="0">
+    </div>
+
+    <div class="joint-group">
+      <div class="joint-header">
+        <span>Codo (Elbow)</span>
+        <span id="val-q2" class="val">0.00 rad</span>
+      </div>
+      <input type="range" id="q2" min="-3.1416" max="3.1416" step="0.01" value="0">
+    </div>
+
+    <div class="joint-group">
+      <div class="joint-header">
+        <span>Muñeca 1 (Wrist 1)</span>
+        <span id="val-q3" class="val">0.00 rad</span>
+      </div>
+      <input type="range" id="q3" min="-3.1416" max="3.1416" step="0.01" value="0">
+    </div>
+
+    <div class="joint-group">
+      <div class="joint-header">
+        <span>Muñeca 2 (Wrist 2)</span>
+        <span id="val-q4" class="val">0.00 rad</span>
+      </div>
+      <input type="range" id="q4" min="-3.1416" max="3.1416" step="0.01" value="0">
+    </div>
+
+    <div class="joint-group">
+      <div class="joint-header">
+        <span>Muñeca 3 (Wrist 3)</span>
+        <span id="val-q5" class="val">0.00 rad</span>
+      </div>
+      <input type="range" id="q5" min="-3.1416" max="3.1416" step="0.01" value="0">
+    </div>
+
+    <div class="actions">
+      <button id="btn-home">Pose Home</button>
+      <button id="btn-animate">Auto Demo</button>
+    </div>
+  </div>
+
+  <div id="info-card">
+    <strong>Controles 3D:</strong><br/>
+    • Clic izquierdo + arrastrar: Rotar cámara<br/>
+    • Clic derecho + arrastrar: Desplazar escena<br/>
+    • Rueda del mouse: Zoom in / Zoom out
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import URDFLoader from 'urdf-loader';
+
+    // 1. Configurar la escena básica Three.js
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f141d);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 50);
+    camera.position.set(0.9, 0.7, 1.2);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 0.25, 0);
+    controls.update();
+
+    // Iluminación
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.5);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
+    dirLight.position.set(2, 4, 3);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    scene.add(dirLight);
+
+    const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.8);
+    fillLight.position.set(-2, 2, -2);
+    scene.add(fillLight);
+
+    // Suelo y Rejilla
+    const grid = new THREE.GridHelper(2, 20, 0x38bdf8, 0x1e293b);
+    grid.position.y = 0;
+    scene.add(grid);
+
+    const floorGeo = new THREE.PlaneGeometry(10, 10);
+    const floorMat = new THREE.MeshStandardMaterial({ 
+      color: 0x090d14, 
+      roughness: 0.8, 
+      metalness: 0.2 
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    // 2. Mapear paquetes ROS a rutas web
+    const loader = new URDFLoader();
+    loader.packages = {
+      ur_description: './models/ur_description/'
+    };
+
+    // 3. Cargar el robot UR3
+    let ur3Robot = null;
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const statusBadge = document.getElementById('status-badge');
+
+    loader.load('./models/ur_description/urdf/ur3.urdf', (robot) => {
+      ur3Robot = robot;
+      
+      // Orientar base si es necesario (el URDF estándar coloca Z hacia arriba)
+      robot.rotation.x = -Math.PI / 2;
+
+      // Habilitar sombras y materiales para las mallas
+      robot.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+
+      scene.add(robot);
+
+      // Ocultar pantalla de carga
+      loadingOverlay.style.opacity = '0';
+      setTimeout(() => loadingOverlay.style.display = 'none', 500);
+
+      statusBadge.textContent = 'En línea';
+      statusBadge.classList.add('ready');
+
+      // Polyfill setAngle en cada articulación para compatibilidad total
+      if (robot.joints) {
+        for (const name in robot.joints) {
+          const joint = robot.joints[name];
+          joint.setAngle = function(val) {
+            return this.setJointValue(val);
+          };
+        }
+      }
+
+      // Exponer globalmente para pruebas en consola
+      window.ur3Robot = ur3Robot;
+      window.setJointAngles = setJointAngles;
+
+      // Pose inicial amigable (no totalmente extendida hacia arriba)
+      setJointAngles([0, -Math.PI / 3, Math.PI / 2, -Math.PI / 6, Math.PI / 2, 0]);
+      syncSliders([0, -Math.PI / 3, Math.PI / 2, -Math.PI / 6, Math.PI / 2, 0]);
+    }, undefined, (err) => {
+      console.error('Error cargando URDF:', err);
+      statusBadge.textContent = 'Error';
+    });
+
+    // 4. Función cinemática para actualizar articulaciones
+    const jointNames = [
+      'shoulder_pan_joint',
+      'shoulder_lift_joint',
+      'elbow_joint',
+      'wrist_1_joint',
+      'wrist_2_joint',
+      'wrist_3_joint'
+    ];
+
+    function setJointAngles(q) {
+      if (!ur3Robot) return;
+      jointNames.forEach((name, idx) => {
+        const val = q[idx];
+        if (typeof ur3Robot.setJointValue === 'function') {
+          ur3Robot.setJointValue(name, val);
+        } else if (ur3Robot.joints && ur3Robot.joints[name]) {
+          if (typeof ur3Robot.joints[name].setJointValue === 'function') {
+            ur3Robot.joints[name].setJointValue(val);
+          } else if (typeof ur3Robot.joints[name].setAngle === 'function') {
+            ur3Robot.joints[name].setAngle(val);
+          }
+        }
+      });
+      if (typeof ur3Robot.updateMatrixWorld === 'function') {
+        ur3Robot.updateMatrixWorld(true);
+      }
+    }
+
+    // Interacción con la UI
+    const sliders = [
+      document.getElementById('q0'),
+      document.getElementById('q1'),
+      document.getElementById('q2'),
+      document.getElementById('q3'),
+      document.getElementById('q4'),
+      document.getElementById('q5')
+    ];
+
+    const valDisplays = [
+      document.getElementById('val-q0'),
+      document.getElementById('val-q1'),
+      document.getElementById('val-q2'),
+      document.getElementById('val-q3'),
+      document.getElementById('val-q4'),
+      document.getElementById('val-q5')
+    ];
+
+    function syncSliders(angles) {
+      angles.forEach((val, i) => {
+        sliders[i].value = val;
+        valDisplays[i].textContent = `${val.toFixed(2)} rad`;
+      });
+    }
+
+    sliders.forEach((slider, idx) => {
+      slider.addEventListener('input', () => {
+        stopAutoDemo();
+        const currentQ = sliders.map(s => parseFloat(s.value));
+        valDisplays[idx].textContent = `${currentQ[idx].toFixed(2)} rad`;
+        setJointAngles(currentQ);
+      });
+    });
+
+    // Botón Home
+    document.getElementById('btn-home').addEventListener('click', () => {
+      stopAutoDemo();
+      const homeQ = [0, -Math.PI / 3, Math.PI / 2, -Math.PI / 6, Math.PI / 2, 0];
+      setJointAngles(homeQ);
+      syncSliders(homeQ);
+    });
+
+    // Auto Demo / Animación
+    let isAnimating = false;
+    const btnAnimate = document.getElementById('btn-animate');
+
+    function stopAutoDemo() {
+      if (isAnimating) {
+        isAnimating = false;
+        btnAnimate.textContent = 'Auto Demo';
+        btnAnimate.classList.remove('active');
+      }
+    }
+
+    btnAnimate.addEventListener('click', () => {
+      isAnimating = !isAnimating;
+      if (isAnimating) {
+        btnAnimate.textContent = 'Detener';
+        btnAnimate.classList.add('active');
+      } else {
+        btnAnimate.textContent = 'Auto Demo';
+        btnAnimate.classList.remove('active');
+      }
+    });
+
+    // Loop de render
+    let clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (isAnimating && ur3Robot) {
+        const t = clock.getElapsedTime();
+        const q = [
+          Math.sin(t * 0.8) * 0.9,
+          -Math.PI / 3 + Math.sin(t * 1.2) * 0.4,
+          Math.PI / 2 + Math.cos(t * 1.0) * 0.5,
+          -Math.PI / 6 + Math.sin(t * 1.5) * 0.6,
+          Math.PI / 2 + Math.cos(t * 1.1) * 0.5,
+          Math.sin(t * 2.0) * 1.2
+        ];
+        setJointAngles(q);
+        syncSliders(q);
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Redimensionado de ventana
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
