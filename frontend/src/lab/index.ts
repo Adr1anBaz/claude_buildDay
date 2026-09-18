@@ -2,6 +2,7 @@
 // La escena es el gemelo digital de Elías (mundo.ts); aquí solo se adapta al contrato de la plataforma.
 import './lab.css';
 import type { Deps, LabHandle } from '../contracts';
+import { montarBitacora, type Bitacora } from './bitacora';
 import { crearMundo } from './mundo';
 
 export type Mundo = ReturnType<typeof crearMundo>;
@@ -31,7 +32,9 @@ export function mundoDe(lab: LabHandle): Mundo {
 }
 
 export function mountLab(root: HTMLElement, deps: Deps): LabHandle {
+  let bitacora: Bitacora | null = null;
   const mundo: Mundo = crearMundo(root, {
+    onEtapa: (texto: string, clase: string) => bitacora?.etapa(texto, clase),
     onVolver: () => deps.showView('dashboard'),
     // "Iniciar simulación" del panel de Elías: con servidor lo lanza el bus (D-17); sin servidor, local.
     onIniciar: (origen: string, destino: string) => {
@@ -39,6 +42,9 @@ export function mountLab(root: HTMLElement, deps: Deps): LabHandle {
       else void mundo.imprimir(origen, destino);
     },
   });
+
+  // Panel flotante con el chat y cada movimiento del brazo (va después: crearMundo reescribe el root).
+  bitacora = montarBitacora(root, deps);
 
   const handle: LabHandle = {
     scene: mundo.scene,

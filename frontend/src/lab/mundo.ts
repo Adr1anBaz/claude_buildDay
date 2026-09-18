@@ -8,7 +8,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import URDFLoader from 'urdf-loader';
 import * as CANNON from 'cannon-es';
 
-const MARCADO = '<div id="lab-toolbar"><button id="volver" class="btn">← Volver</button></div>\n<button id="reset"  class="btn">Reset cámara</button>\n<div id="loading">CARGANDO URDF UR3 …</div>\n\n<aside id="panel">\n  <h2>Panel B · Operación <span>Pick &amp; Place</span></h2>\n  <div class="sel"><label>Origen</label><select id="origen"><option value="P1">Impresora 1 (P1)</option><option value="P2">Impresora 2 (P2)</option></select></div>\n  <div class="sel"><label>Destino</label><select id="destino"><option value="cajon-1">Caja 1</option><option value="cajon-2">Caja 2</option><option value="cajon-3">Caja 3</option><option value="cajon-4">Caja 4</option></select></div>\n  <div class="sel"><label>Velocidad</label><select id="vel"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></div>\n  <div class="row">\n    <button class="btn primary" id="start">Iniciar simulación</button>\n    <button class="btn danger" id="stop">Stop</button>\n  </div>\n  <div id="banner">EN ESPERA</div>\n  <hr>\n  <h2>Panel A · Jogging <span>UR3</span></h2>\n  <div id="joints"></div>\n  <div class="j"><label>Gripper</label><input type="range" id="grip" min="0" max="100" value="100" step="1"><input type="number" id="grip-n" min="0" max="100" value="100" step="1"></div>\n  <hr>\n  <h2>TCP · FK (T6_0) <span>mm / rad</span></h2>\n  <div class="tcp" id="tcp"></div>\n  <div class="row">\n    <button class="btn" id="home">Homing</button>\n    <label class="chk"><input type="checkbox" id="ax-base"> Base frame</label>\n    <label class="chk"><input type="checkbox" id="ax-tcp"> TCP frame</label>\n    <label class="chk"><input type="checkbox" id="trail" checked> Trayectoria</label>\n    <label class="chk"><input type="checkbox" id="colviz"> Esferas colisión</label>\n  </div>\n  <div id="colstate" class="ok">sin colisión</div>\n  <p class="note">Modelo: ur3.urdf + mallas Collada locales, articulado vía urdf-loader. DH UR3: D1 151.9 · A2 −243.65 · A3 −213.25 · D4 112.35 · D5 85.35 · D6 81.9 mm. Home <code>[0,−90,0,−90,0,0]</code>. Impresoras: Bambu Lab X1C/P1S 389×389×457 mm + AMS.</p>\n</aside>\n<div id="estado"><b>LAB</b> · UR3 (500 mm) · Bambu P1 · P2 · 4 cajas · celda 2×2 m · banco 1.00 m</div>';
+const MARCADO = '<div id="lab-toolbar"><button id="volver" class="btn">← Volver</button></div>\n<button id="reset"  class="btn">Reset cámara</button>\n<div id="loading">CARGANDO URDF UR3 …</div>\n\n<aside id="panel">\n  <h2>Panel B · Operación <span>Pick &amp; Place</span></h2>\n  <div class="sel"><label>Origen</label><select id="origen"><option value="P1">Impresora 1 (P1)</option><option value="P2">Impresora 2 (P2)</option></select></div>\n  <div class="sel"><label>Destino</label><select id="destino"><option value="cajon-1">Caja 1</option><option value="cajon-2">Caja 2</option><option value="cajon-3">Caja 3</option><option value="cajon-4">Caja 4</option></select></div>\n  <div class="sel"><label>Velocidad</label><select id="vel"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></div>\n  <div class="row">\n    <button class="btn primary" id="start">Iniciar simulación</button>\n    <button class="btn danger" id="stop">Stop</button>\n  </div>\n  <div id="banner">EN ESPERA</div>\n  <hr>\n  <h2>Panel A · Jogging <span>UR3</span></h2>\n  <div id="joints"></div><div class="leyenda-mov"><span><i class="led"></i>aumenta</span><span class="baja"><i class="led"></i>disminuye</span></div>\n  <div class="j"><label><i class="led"></i>Gripper</label><input type="range" id="grip" min="0" max="100" value="100" step="1"><input type="number" id="grip-n" min="0" max="100" value="100" step="1"></div>\n  <hr>\n  <h2>TCP · FK (T6_0) <span>mm / rad</span></h2>\n  <div class="tcp" id="tcp"></div>\n  <div class="row">\n    <button class="btn" id="home">Homing</button>\n    <label class="chk"><input type="checkbox" id="ax-base"> Base frame</label>\n    <label class="chk"><input type="checkbox" id="ax-tcp"> TCP frame</label>\n    <label class="chk"><input type="checkbox" id="trail" checked> Trayectoria</label>\n    <label class="chk"><input type="checkbox" id="colviz"> Esferas colisión</label>\n  </div>\n  <div id="colstate" class="ok">sin colisión</div>\n  <p class="note">Modelo: ur3.urdf + mallas Collada locales, articulado vía urdf-loader. DH UR3: D1 151.9 · A2 −243.65 · A3 −213.25 · D4 112.35 · D5 85.35 · D6 81.9 mm. Home <code>[0,−90,0,−90,0,0]</code>. Impresoras: Bambu Lab X1C/P1S 389×389×457 mm + AMS.</p>\n</aside>\n<div id="estado"><b>LAB</b> · UR3 (500 mm) · Bambu P1 · P2 · 4 cajas · celda 2×2 m · banco 1.00 m</div>';
 
 export function crearMundo(root, opciones) {
 root.innerHTML = MARCADO;
@@ -280,7 +280,7 @@ gripper.add(box(0.075,0.03,0.03,M.gripAlu,{z:0.065}));
 const fL=box(0.010,0.022,0.06,M.grip,{z:0.105}); fL.name='finger-L'; gripper.add(fL);
 const fR=box(0.010,0.022,0.06,M.grip,{z:0.105}); fR.name='finger-R'; gripper.add(fR);
 const GRIP_MAX=0.05; let gripPct=100;
-function setGripper(pct){ gripPct=pct; const gap=GRIP_MAX*pct/100+0.04; fL.position.x=-gap/2; fR.position.x=gap/2; }
+function setGripper(pct){ if(Math.abs(pct-gripPct)>0.05){ pulsoFila($('grip').closest('.j'),pct>gripPct); $('grip').value=pct; $('grip-n').value=Math.round(pct); } gripPct=pct; const gap=GRIP_MAX*pct/100+0.04; fL.position.x=-gap/2; fR.position.x=gap/2; }
 setGripper(100);
 const axesBase=new THREE.AxesHelper(0.15); axesBase.visible=false; brazo.add(axesBase);
 const axesTcp=new THREE.AxesHelper(0.08); axesTcp.visible=false; tcp.add(axesTcp);
@@ -339,18 +339,21 @@ function trailClear(){ trailN=0; trailGeo.setDrawRange(0,0); }
 /* ============================== 5. Estado + UI ============================== */
 const q=[...HOME];
 function applyJoints(){ if(!robot) return; for(let i=0;i<6;i++) joints[i].setJointValue(THREE.MathUtils.degToRad(q[i])); robot.updateMatrixWorld(true); }
-const jointsEl=$('joints'); const sliders=[],numbers=[];
+const jointsEl=$('joints'); const sliders=[],numbers=[],filas=[];
 JOINT_NAMES.forEach((n,i)=>{ const row=document.createElement('div'); row.className='j';
-  row.innerHTML=`<label title="${JOINT_IDS[i]}_joint">${n}</label><input type="range" min="-360" max="360" step="0.5" value="${q[i]}"><input type="number" min="-360" max="360" step="0.5" value="${q[i]}">`;
-  const [r,nm]=row.querySelectorAll('input'); sliders.push(r); numbers.push(nm);
+  row.innerHTML=`<label title="${JOINT_IDS[i]}_joint"><i class="led"></i>${n}</label><input type="range" min="-360" max="360" step="0.5" value="${q[i]}"><input type="number" min="-360" max="360" step="0.5" value="${q[i]}">`;
+  const [r,nm]=row.querySelectorAll('input'); sliders.push(r); numbers.push(nm); filas.push(row);
   r.addEventListener('input',()=>{ if(running) return; q[i]=+r.value; nm.value=r.value; update(); });
   nm.addEventListener('change',()=>{ if(running) return; q[i]=THREE.MathUtils.clamp(+nm.value,-360,360); nm.value=q[i]; r.value=q[i]; update(); });
   jointsEl.appendChild(row); });
 const tcpEl=$('tcp');
 tcpEl.innerHTML=[['X','mm'],['Y','mm'],['Z','mm'],['Rx','rad'],['Ry','rad'],['Rz','rad']].map(([k,u])=>`<div><small>${k} · ${u}</small><b id="tcp-${k}">–</b></div>`).join('');
 function update(){ applyJoints(); const {pos,rotvec}=forwardKinematics(q);
-  ['X','Y','Z'].forEach((k,i)=>$('tcp-'+k).textContent=pos[i].toFixed(1));
-  ['Rx','Ry','Rz'].forEach((k,i)=>$('tcp-'+k).textContent=rotvec[i].toFixed(3)); }
+  for(let i=0;i<6;i++){ const d=q[i]-qPrevia[i]; if(Math.abs(d)>0.01) pulsoFila(filas[i],d>0); qPrevia[i]=q[i]; }
+  const celda=(k,v)=>{ const b=$('tcp-'+k); if(b.textContent!==v){ if(b.textContent!=='–') pulsoFila(b.parentElement,true); b.textContent=v; } };
+  ['X','Y','Z'].forEach((k,i)=>celda(k,pos[i].toFixed(1)));
+  ['Rx','Ry','Rz'].forEach((k,i)=>celda(k,rotvec[i].toFixed(3))); }
+const qPrevia=[...HOME];
 function setQ(arr,ui=true){ for(let i=0;i<6;i++){ q[i]=arr[i]; if(ui){ sliders[i].value=arr[i].toFixed(1); numbers[i].value=arr[i].toFixed(1); } } update(); }
 $('home').onclick=()=>{ if(!running) setQ(HOME); };
 $('ax-base').onchange=e=>axesBase.visible=e.target.checked;
@@ -366,7 +369,7 @@ setQ(HOME);
 
 /* ============================== 6. Pick & Place ============================== */
 const banner=$('banner');
-function setBanner(t,cls=''){ banner.textContent=t; banner.className=cls; console.log('[ciclo]',t); }
+function setBanner(t,cls=''){ banner.textContent=t; banner.className=cls; console.log('[ciclo]',t); opciones.onEtapa?.(t,cls); }
 let running=false, abort=false, lastMoveError=null;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ease=t=>t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;   // cúbica suave (MoveJ)
@@ -535,6 +538,9 @@ renderer.setAnimationLoop(()=>{ const dt=clock.getDelta(); physicsStep(dt); for(
   if(!root.hidden) renderer.render(scene,camera); });
 
 /* ============================== 8. Integración con la plataforma (WS-0) ============================== */
+/** Ilumina la fila (o celda) que se está moviendo: verde si aumenta, naranja si disminuye; se apaga sola. */
+function pulsoFila(el,sube){ if(!el) return; el.classList.add('mov'); el.classList.toggle('baja',!sube);
+  clearTimeout(el._apagar); el._apagar=setTimeout(()=>el.classList.remove('mov','baja'),450); }
 /** D-16: cada job deja su pieza en el cajón; la `pieza` viva se reutiliza para el siguiente. */
 const guardadas=[];
 function guardarPiezaAnterior(){ if(!pieza.visible||piezaHeld) return;
